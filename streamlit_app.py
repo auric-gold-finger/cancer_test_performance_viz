@@ -6,13 +6,13 @@ import numpy as np
 
 # Configure the app
 st.set_page_config(
-    page_title="Cancer Screening Test Comparison",
-    page_icon="🩺",
+    page_title="Cancer Screening Test Analysis",
+    page_icon="📊",
     layout="wide"
 )
 
-st.title("🩺 Cancer Screening Test Comparison Tool")
-st.markdown("**Compare how well different tests can detect cancer and understand what the results mean for you**")
+st.title("Cancer Screening Test Analysis")
+st.markdown("Compare test performance and understand what results mean for your cancer risk")
 
 # Real clinical data from recent studies and trials
 TEST_PERFORMANCE = {
@@ -22,7 +22,7 @@ TEST_PERFORMANCE = {
         "colorectal": {"sensitivity": 0.67, "specificity": 0.95},
         "prostate": {"sensitivity": 0.84, "specificity": 0.89},
         "liver": {"sensitivity": 0.84, "specificity": 0.94},
-        "pancreatic": {"sensitivity": 0.75, "specificity": 0.85},  # High-risk groups only
+        "pancreatic": {"sensitivity": 0.75, "specificity": 0.85},
         "ovarian": {"sensitivity": 0.98, "specificity": 0.90},
         "kidney": {"sensitivity": 0.85, "specificity": 0.90}
     },
@@ -85,20 +85,21 @@ CANCER_INCIDENCE = {
 }
 
 def calculate_ppv_npv(sensitivity, specificity, prevalence):
-    """Calculate how likely test results are to be correct"""
-    # PPV = chance that positive test means you have cancer
+    """Calculate test accuracy metrics"""
     ppv = (sensitivity * prevalence) / (sensitivity * prevalence + (1 - specificity) * (1 - prevalence))
-    # NPV = chance that negative test means you don't have cancer  
     npv = (specificity * (1 - prevalence)) / ((1 - sensitivity) * prevalence + specificity * (1 - prevalence))
     return ppv, npv
 
+def calculate_post_test_risk_negative(sensitivity, prevalence):
+    """Calculate cancer risk after a negative test"""
+    return ((1 - sensitivity) * prevalence) / ((1 - sensitivity) * prevalence + 1 - prevalence)
+
 def get_prevalence_from_incidence(incidence_rate):
-    """Convert yearly cancer rate to how common cancer is overall"""
-    # Using 5-year prevalence estimate
+    """Convert yearly cancer rate to prevalence"""
     return (incidence_rate / 100000) * 5
 
 def interpolate_incidence(age, sex, cancer_type):
-    """Estimate cancer risk for your specific age"""
+    """Get cancer risk for specific age"""
     age_points = list(CANCER_INCIDENCE[cancer_type][sex].keys())
     incidence_points = list(CANCER_INCIDENCE[cancer_type][sex].values())
     
@@ -109,413 +110,274 @@ def interpolate_incidence(age, sex, cancer_type):
     else:
         return np.interp(age, age_points, incidence_points)
 
-# Sidebar inputs with better explanations
-st.sidebar.header("🔍 Your Information")
-st.sidebar.markdown("*Tell us about yourself to get personalized results*")
+# Sidebar inputs
+st.sidebar.header("Input Parameters")
 
-# Age input with context
-age = st.sidebar.slider(
-    "Your age", 
-    min_value=30, max_value=90, value=55, step=1,
-    help="Cancer risk increases with age, so this affects how useful screening tests are for you"
-)
-
-# Sex input with explanation
-sex = st.sidebar.selectbox(
-    "Sex", 
-    ["male", "female"],
-    help="Some cancers are more common in men or women, affecting test usefulness"
-)
-
-# Test type with descriptions
-test_descriptions = {
-    "Whole-body MRI": "📸 Full-body MRI scan (no radiation, takes 60-90 minutes)",
-    "Grail Blood Test": "🩸 Blood test that looks for cancer DNA (simple blood draw)",
-    "CT Scan": "🔬 X-ray scan with some radiation (quick, 10-30 minutes)"
-}
+age = st.sidebar.slider("Age", min_value=30, max_value=90, value=55, step=1)
+sex = st.sidebar.selectbox("Sex", ["male", "female"])
 
 test_type = st.sidebar.selectbox(
-    "Choose a screening test to analyze",
-    list(test_descriptions.keys()),
-    format_func=lambda x: test_descriptions[x]
+    "Screening Test",
+    ["Whole-body MRI", "Grail Blood Test", "CT Scan"]
 )
 
-# Risk level explanation
-st.sidebar.markdown("---")
-st.sidebar.subheader("📊 Risk Level")
-
-use_custom_probability = st.sidebar.checkbox(
-    "I have higher than average cancer risk",
-    help="Check this if you have family history, genetic mutations, or other risk factors"
-)
+use_custom_probability = st.sidebar.checkbox("Use custom cancer risk")
 
 if use_custom_probability:
     custom_probability = st.sidebar.slider(
-        "Your estimated cancer risk (%)", 
-        min_value=0.1, max_value=20.0, value=5.0, step=0.1,
-        help="Talk to your doctor about your personal risk level"
+        "Cancer risk (%)", 
+        min_value=0.1, max_value=20.0, value=5.0, step=0.1
     )
-    st.sidebar.info("💡 Higher risk makes positive tests more likely to be correct")
-else:
-    st.sidebar.info("💡 Using average risk for someone your age and sex")
 
 # Calculate results
 results = []
 cancer_types = list(TEST_PERFORMANCE[test_type].keys())
 
 for cancer_type in cancer_types:
-    # Skip irrelevant combinations
     if cancer_type == "prostate" and sex == "female":
         continue
     if cancer_type == "ovarian" and sex == "male":
         continue
         
-    # Get test performance
     sensitivity = TEST_PERFORMANCE[test_type][cancer_type]["sensitivity"]
     specificity = TEST_PERFORMANCE[test_type][cancer_type]["specificity"]
     
-    # Calculate cancer risk
     if use_custom_probability:
         prevalence = custom_probability / 100
     else:
         incidence_rate = interpolate_incidence(age, sex, cancer_type)
         prevalence = get_prevalence_from_incidence(incidence_rate)
     
-    # Calculate test accuracy
     ppv, npv = calculate_ppv_npv(sensitivity, specificity, prevalence)
+    post_test_risk = calculate_post_test_risk_negative(sensitivity, prevalence)
     
     results.append({
         "Cancer Type": cancer_type.replace("_", " ").title(),
-        "Catches Cancer (%)": round(sensitivity * 100, 1),
-        "Correctly Rules Out (%)": round(specificity * 100, 1),
-        "Your Cancer Risk (%)": round(prevalence * 100, 3),
-        "Positive Test Accuracy (%)": round(ppv * 100, 1),
-        "Negative Test Accuracy (%)": round(npv * 100, 1)
+        "Detection Rate": round(sensitivity * 100, 1),
+        "Accuracy Rate": round(specificity * 100, 1),
+        "Pre-test Risk": round(prevalence * 100, 3),
+        "Post-test Risk (if negative)": round(post_test_risk * 100, 4),
+        "Positive Accuracy": round(ppv * 100, 1),
+        "Negative Accuracy": round(npv * 100, 1),
+        "Risk Reduction": round(((prevalence - post_test_risk) / prevalence) * 100, 1)
     })
 
 df = pd.DataFrame(results)
 
-# Main content with clear explanations
-col1, col2 = st.columns([3, 1])
+# Main content
+st.subheader(f"Test Performance: {test_type}")
 
+# Summary metrics
+col1, col2, col3 = st.columns(3)
 with col1:
-    st.subheader(f"📋 Results for {test_type}")
-    
-    # Key insights box
-    avg_positive_accuracy = df["Positive Test Accuracy (%)"].mean()
-    avg_negative_accuracy = df["Negative Test Accuracy (%)"].mean()
-    
-    if avg_positive_accuracy < 10:
-        positive_msg = "⚠️ **Low accuracy** - many positive tests may be false alarms"
-        positive_color = "red"
-    elif avg_positive_accuracy < 50:
-        positive_msg = "🔶 **Moderate accuracy** - some positive tests may be false alarms"  
-        positive_color = "orange"
-    else:
-        positive_msg = "✅ **Good accuracy** - positive tests are usually correct"
-        positive_color = "green"
-
-    st.markdown(f"""
-    <div style="background-color: #f0f2f6; padding: 20px; border-radius: 10px; margin: 20px 0;">
-        <h4>🎯 Key Takeaways for You:</h4>
-        <p><strong>If your test is POSITIVE:</strong> <span style="color: {positive_color};">{positive_msg}</span></p>
-        <p><strong>If your test is NEGATIVE:</strong> ✅ <span style="color: green;"><strong>Very reliable</strong> - you most likely don't have cancer</span></p>
-        <p><strong>Average positive test accuracy:</strong> {avg_positive_accuracy:.1f}%</p>
-        <p><strong>Average negative test accuracy:</strong> {avg_negative_accuracy:.1f}%</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Create visualization
-    fig = make_subplots(
-        rows=2, cols=2,
-        subplot_titles=(
-            'How Often Test Catches Cancer', 
-            'How Often Test Rules Out Cancer Correctly',
-            'Your Personal Cancer Risk by Type', 
-            'Accuracy When Test Says "Cancer Detected"'
-        ),
-        specs=[[{"secondary_y": False}, {"secondary_y": False}],
-               [{"secondary_y": False}, {"secondary_y": False}]]
-    )
-    
-    # Sensitivity (cancer detection)
-    fig.add_trace(
-        go.Bar(
-            x=df["Cancer Type"], 
-            y=df["Catches Cancer (%)"], 
-            name="Sensitivity",
-            marker_color='lightcoral',
-            showlegend=False,
-            hovertemplate="<b>%{x}</b><br>Catches %{y}% of cancers<extra></extra>"
-        ),
-        row=1, col=1
-    )
-    
-    # Specificity (correct rule-out)
-    fig.add_trace(
-        go.Bar(
-            x=df["Cancer Type"], 
-            y=df["Correctly Rules Out (%)"], 
-            name="Specificity",
-            marker_color='lightblue',
-            showlegend=False,
-            hovertemplate="<b>%{x}</b><br>Correctly rules out %{y}% of non-cancers<extra></extra>"
-        ),
-        row=1, col=2
-    )
-    
-    # Personal risk
-    fig.add_trace(
-        go.Bar(
-            x=df["Cancer Type"], 
-            y=df["Your Cancer Risk (%)"], 
-            name="Risk",
-            marker_color='lightyellow',
-            showlegend=False,
-            hovertemplate="<b>%{x}</b><br>Your risk: %{y}%<extra></extra>"
-        ),
-        row=2, col=1
-    )
-    
-    # PPV (positive test accuracy)
-    colors = ['red' if x < 10 else 'orange' if x < 50 else 'green' 
-              for x in df["Positive Test Accuracy (%)"]]
-    
-    fig.add_trace(
-        go.Bar(
-            x=df["Cancer Type"], 
-            y=df["Positive Test Accuracy (%)"], 
-            name="PPV",
-            marker_color=colors,
-            showlegend=False,
-            hovertemplate="<b>%{x}</b><br>Positive test accuracy: %{y}%<extra></extra>"
-        ),
-        row=2, col=2
-    )
-    
-    fig.update_layout(
-        height=700,
-        title_text=f"Test Performance Analysis: {test_type}",
-        showlegend=False
-    )
-    
-    # Update axes labels
-    fig.update_yaxes(title_text="Detection Rate (%)", row=1, col=1)
-    fig.update_yaxes(title_text="Accuracy (%)", row=1, col=2)
-    fig.update_yaxes(title_text="Risk (%)", row=2, col=1)
-    fig.update_yaxes(title_text="Accuracy (%)", row=2, col=2)
-    
-    # Rotate x-axis labels for readability
-    fig.update_xaxes(tickangle=45)
-    
-    st.plotly_chart(fig, use_container_width=True)
-
+    avg_detection = df["Detection Rate"].mean()
+    st.metric("Average Detection Rate", f"{avg_detection:.1f}%")
 with col2:
-    st.subheader("📝 Your Profile")
-    st.write(f"**Age:** {age} years")
-    st.write(f"**Sex:** {sex.title()}")
-    
-    if use_custom_probability:
-        st.write(f"**Risk Level:** Higher than average ({custom_probability}%)")
-    else:
-        st.write("**Risk Level:** Average for your age/sex")
-    
-    st.markdown("---")
-    st.subheader("🏆 Best Performance")
-    
-    # Find best performers
-    best_detection = df.loc[df["Catches Cancer (%)"].idxmax()]
-    best_accuracy = df.loc[df["Positive Test Accuracy (%)"].idxmax()]
-    
-    st.write(f"**Best at catching cancer:**")
-    st.write(f"{best_detection['Cancer Type']} ({best_detection['Catches Cancer (%)']}%)")
-    
-    st.write(f"**Most accurate when positive:**")
-    st.write(f"{best_accuracy['Cancer Type']} ({best_accuracy['Positive Test Accuracy (%)']}%)")
-    
-    # Risk context
-    st.markdown("---")
-    st.subheader("🎯 What This Means")
-    
-    highest_risk = df.loc[df["Your Cancer Risk (%)"].idxmax()]
-    if highest_risk["Your Cancer Risk (%)"] > 1:
-        st.warning(f"Your highest risk is {highest_risk['Cancer Type']} at {highest_risk['Your Cancer Risk (%)']}%. Consider discussing screening with your doctor.")
-    else:
-        st.info("Your cancer risks are relatively low. Screening may have limited benefit.")
+    avg_accuracy = df["Accuracy Rate"].mean()
+    st.metric("Average Accuracy Rate", f"{avg_accuracy:.1f}%")
+with col3:
+    avg_positive_accuracy = df["Positive Accuracy"].mean()
+    st.metric("Average Positive Test Accuracy", f"{avg_positive_accuracy:.1f}%")
 
-# Detailed results table
-st.subheader("📊 Detailed Results Table")
-st.markdown("*All numbers are percentages*")
+# Risk comparison section
+st.subheader("Risk Profile: Before vs After Negative Test")
 
-# Format the table nicely
-formatted_df = df.copy()
-formatted_df = formatted_df.round(1)
+# Create side-by-side comparison
+comparison_data = []
+for _, row in df.iterrows():
+    comparison_data.append({
+        "Cancer Type": row["Cancer Type"],
+        "Before Test": row["Pre-test Risk"],
+        "After Negative Test": row["Post-test Risk (if negative)"],
+        "Risk Reduction": row["Risk Reduction"]
+    })
+
+comparison_df = pd.DataFrame(comparison_data)
+
+# Visualization of risk reduction
+fig_comparison = go.Figure()
+
+fig_comparison.add_trace(go.Bar(
+    name='Before Test',
+    x=comparison_df["Cancer Type"],
+    y=comparison_df["Before Test"],
+    marker_color='lightblue',
+    opacity=0.8
+))
+
+fig_comparison.add_trace(go.Bar(
+    name='After Negative Test',
+    x=comparison_df["Cancer Type"],
+    y=comparison_df["After Negative Test"],
+    marker_color='darkblue',
+    opacity=0.8
+))
+
+fig_comparison.update_layout(
+    title='Cancer Risk Before and After Negative Test Result',
+    xaxis_title='Cancer Type',
+    yaxis_title='Risk (%)',
+    barmode='group',
+    height=400
+)
+
+st.plotly_chart(fig_comparison, use_container_width=True)
+
+# Risk reduction table
+st.subheader("Risk Reduction Summary")
+st.markdown("How much a negative test reduces your cancer risk:")
+
+formatted_comparison = comparison_df.copy()
+formatted_comparison["Before Test"] = formatted_comparison["Before Test"].round(3)
+formatted_comparison["After Negative Test"] = formatted_comparison["After Negative Test"].round(4)
+formatted_comparison["Risk Reduction"] = formatted_comparison["Risk Reduction"].round(1)
 
 st.dataframe(
-    formatted_df,
+    formatted_comparison,
     use_container_width=True,
     column_config={
-        "Cancer Type": st.column_config.TextColumn("Cancer Type", width="medium"),
-        "Catches Cancer (%)": st.column_config.NumberColumn("Catches Cancer (%)", help="How often the test detects cancer when it's present"),
-        "Correctly Rules Out (%)": st.column_config.NumberColumn("Rules Out Cancer (%)", help="How often the test correctly says 'no cancer' when there isn't any"),
-        "Your Cancer Risk (%)": st.column_config.NumberColumn("Your Risk (%)", help="Your chance of having this cancer right now"),
-        "Positive Test Accuracy (%)": st.column_config.NumberColumn("+ Test Accuracy (%)", help="If test says 'cancer detected', chance it's correct"),
-        "Negative Test Accuracy (%)": st.column_config.NumberColumn("- Test Accuracy (%)", help="If test says 'no cancer', chance it's correct")
+        "Cancer Type": "Cancer Type",
+        "Before Test": st.column_config.NumberColumn("Before Test (%)", format="%.3f"),
+        "After Negative Test": st.column_config.NumberColumn("After Negative Test (%)", format="%.4f"),
+        "Risk Reduction": st.column_config.NumberColumn("Risk Reduction (%)", format="%.1f")
     }
 )
 
-# Educational sections
+# Test performance visualization
+st.subheader("Detailed Test Performance")
+
+fig = make_subplots(
+    rows=2, cols=2,
+    subplot_titles=('Detection Rate by Cancer Type', 'Accuracy Rate by Cancer Type', 
+                   'Positive Test Accuracy', 'Your Cancer Risk Profile'),
+    specs=[[{"secondary_y": False}, {"secondary_y": False}],
+           [{"secondary_y": False}, {"secondary_y": False}]]
+)
+
+# Detection rate
+fig.add_trace(
+    go.Bar(x=df["Cancer Type"], y=df["Detection Rate"], 
+           marker_color='coral', showlegend=False),
+    row=1, col=1
+)
+
+# Accuracy rate
+fig.add_trace(
+    go.Bar(x=df["Cancer Type"], y=df["Accuracy Rate"], 
+           marker_color='lightblue', showlegend=False),
+    row=1, col=2
+)
+
+# Positive accuracy with color coding
+colors = ['red' if x < 10 else 'orange' if x < 50 else 'green' 
+          for x in df["Positive Accuracy"]]
+
+fig.add_trace(
+    go.Bar(x=df["Cancer Type"], y=df["Positive Accuracy"], 
+           marker_color=colors, showlegend=False),
+    row=2, col=1
+)
+
+# Risk profile
+fig.add_trace(
+    go.Bar(x=df["Cancer Type"], y=df["Pre-test Risk"], 
+           marker_color='gold', showlegend=False),
+    row=2, col=2
+)
+
+fig.update_layout(height=600, showlegend=False)
+fig.update_yaxes(title_text="Rate (%)", row=1, col=1)
+fig.update_yaxes(title_text="Rate (%)", row=1, col=2)
+fig.update_yaxes(title_text="Accuracy (%)", row=2, col=1)
+fig.update_yaxes(title_text="Risk (%)", row=2, col=2)
+fig.update_xaxes(tickangle=45)
+
+st.plotly_chart(fig, use_container_width=True)
+
+# Complete results table
+st.subheader("Complete Results")
+display_df = df[["Cancer Type", "Detection Rate", "Accuracy Rate", "Pre-test Risk", 
+                "Positive Accuracy", "Negative Accuracy"]].copy()
+
+st.dataframe(
+    display_df,
+    use_container_width=True,
+    column_config={
+        "Cancer Type": "Cancer Type",
+        "Detection Rate": st.column_config.NumberColumn("Detection Rate (%)", format="%.1f"),
+        "Accuracy Rate": st.column_config.NumberColumn("Accuracy Rate (%)", format="%.1f"),
+        "Pre-test Risk": st.column_config.NumberColumn("Your Risk (%)", format="%.3f"),
+        "Positive Accuracy": st.column_config.NumberColumn("Positive Accuracy (%)", format="%.1f"),
+        "Negative Accuracy": st.column_config.NumberColumn("Negative Accuracy (%)", format="%.1f")
+    }
+)
+
+# Key insights
+st.subheader("Key Insights")
+
+best_detection = df.loc[df["Detection Rate"].idxmax()]
+best_risk_reduction = df.loc[df["Risk Reduction"].idxmax()]
+highest_risk = df.loc[df["Pre-test Risk"].idxmax()]
+
 col1, col2 = st.columns(2)
 
 with col1:
-    with st.expander("🤔 What do these numbers mean?"):
-        st.markdown("""
-        **Catches Cancer (Sensitivity):** Out of 100 people who have cancer, how many will the test detect?
-        - Higher is better for not missing cancer
-        - Example: 80% means test finds 8 out of 10 cancers
-        
-        **Rules Out Cancer (Specificity):** Out of 100 people without cancer, how many will the test correctly identify?
-        - Higher is better for avoiding false alarms
-        - Example: 95% means only 5 out of 100 healthy people get false positives
-        
-        **Positive Test Accuracy (PPV):** If your test says "cancer detected," what's the chance you actually have cancer?
-        - This depends heavily on how common the cancer is
-        - Low numbers mean many false alarms
-        
-        **Negative Test Accuracy (NPV):** If your test says "no cancer," what's the chance you're truly cancer-free?
-        - Usually very high (reassuring!)
-        - Gives confidence in negative results
-        """)
+    st.markdown(f"""
+    **Test Performance:**
+    - Best detection: {best_detection['Cancer Type']} ({best_detection['Detection Rate']}%)
+    - Highest risk reduction from negative test: {best_risk_reduction['Cancer Type']} ({best_risk_reduction['Risk Reduction']}%)
+    """)
 
 with col2:
-    with st.expander("⚡ Key Insights by Test Type"):
-        if test_type == "Grail Blood Test":
-            st.markdown("""
-            **Grail Blood Test Strengths:**
-            - 🎯 Very few false alarms (99.5% specificity)
-            - 🩸 Simple blood draw, no radiation
-            - 🔍 Can detect many cancer types at once
-            
-            **Limitations:**
-            - ⚠️ Misses many early-stage cancers
-            - 💰 Expensive ($949 out-of-pocket)
-            - 🧪 Relatively new technology
-            """)
-        elif test_type == "Whole-body MRI":
-            st.markdown("""
-            **Whole-body MRI Strengths:**
-            - 📸 No radiation exposure
-            - 🎯 Good detail for most cancer types
-            - 🔍 Can see entire body at once
-            
-            **Limitations:**
-            - ⚠️ May cause anxiety from incidental findings
-            - 💰 Very expensive ($1,000-$5,000)
-            - ⏰ Takes 60-90 minutes
-            """)
-        else:  # CT Scan
-            st.markdown("""
-            **CT Scan Strengths:**
-            - ⚡ Fast and widely available
-            - 🎯 Very good for lung cancer screening
-            - 💰 Relatively affordable
-            
-            **Limitations:**
-            - ☢️ Radiation exposure
-            - ⚠️ More false alarms than blood tests
-            - 🫁 Best evidence only for lung cancer
-            """)
+    st.markdown(f"""
+    **Your Risk Profile:**
+    - Highest personal risk: {highest_risk['Cancer Type']} ({highest_risk['Pre-test Risk']}%)
+    - Average positive test accuracy: {avg_positive_accuracy:.1f}%
+    """)
 
-# Important disclaimers
+# Test-specific information
+st.subheader(f"About {test_type}")
+
+test_info = {
+    "Grail Blood Test": {
+        "description": "Blood test that detects cancer DNA fragments",
+        "strengths": ["Very low false positive rate (0.5%)", "Simple blood draw", "Multiple cancer types"],
+        "limitations": ["Misses many early cancers", "Expensive", "New technology"]
+    },
+    "Whole-body MRI": {
+        "description": "Magnetic resonance imaging of entire body",
+        "strengths": ["No radiation", "Detailed images", "Good for soft tissues"],
+        "limitations": ["Expensive", "Time consuming", "Many incidental findings"]
+    },
+    "CT Scan": {
+        "description": "X-ray computed tomography scan",
+        "strengths": ["Fast", "Widely available", "Good for lung screening"],
+        "limitations": ["Radiation exposure", "Higher false positive rates", "Limited to certain cancers"]
+    }
+}
+
+info = test_info[test_type]
+st.write(f"**Description:** {info['description']}")
+
+col1, col2 = st.columns(2)
+with col1:
+    st.write("**Strengths:**")
+    for strength in info['strengths']:
+        st.write(f"- {strength}")
+
+with col2:
+    st.write("**Limitations:**")
+    for limitation in info['limitations']:
+        st.write(f"- {limitation}")
+
+# Disclaimers
 st.markdown("---")
-st.error("""
-**⚠️ Important Disclaimers:**
-- This tool is for educational purposes only and should not replace medical advice
-- Actual test performance can vary based on many factors
-- Always discuss screening decisions with your healthcare provider
-- Some tests may not be appropriate or available for everyone
+st.warning("""
+**Important:** This tool is for educational purposes only. Always consult healthcare providers 
+for medical decisions. Test performance varies based on individual factors not captured here.
 """)
 
 st.info("""
-**📚 Data Sources:** Performance data from recent clinical trials including CCGA validation study (Grail), 
-NLST trial (CT lung screening), and systematic reviews of MRI screening studies. Cancer rates from 
-SEER and CDC databases (2018-2022).
+**Data Sources:** Clinical trial data from CCGA validation study (Grail), NLST trial (CT), 
+systematic reviews (MRI), and SEER/CDC cancer statistics (2018-2022).
 """)
-
-# Interactive risk calculator
-st.markdown("---")
-st.subheader("🎲 Interactive Risk Explorer")
-st.markdown("*See how test accuracy changes with cancer risk*")
-
-selected_cancer = st.selectbox(
-    "Select a cancer type to explore:", 
-    [c.title() for c in cancer_types if not (c == "prostate" and sex == "female") and not (c == "ovarian" and sex == "male")]
-)
-
-if selected_cancer:
-    cancer_key = selected_cancer.lower()
-    
-    # Create risk range analysis
-    risk_range = np.logspace(-3, -1, 100)  # 0.1% to 10%
-    ppv_range = []
-    npv_range = []
-    
-    sensitivity = TEST_PERFORMANCE[test_type][cancer_key]["sensitivity"]
-    specificity = TEST_PERFORMANCE[test_type][cancer_key]["specificity"]
-    
-    for risk in risk_range:
-        ppv, npv = calculate_ppv_npv(sensitivity, specificity, risk)
-        ppv_range.append(ppv * 100)
-        npv_range.append(npv * 100)
-    
-    # Create the plot
-    fig_risk = go.Figure()
-    
-    fig_risk.add_trace(go.Scatter(
-        x=risk_range * 100,
-        y=ppv_range,
-        mode='lines',
-        name='Positive Test Accuracy',
-        line=dict(color='red', width=3),
-        hovertemplate="<b>Risk: %{x:.2f}%</b><br>Positive test accuracy: %{y:.1f}%<extra></extra>"
-    ))
-    
-    fig_risk.add_trace(go.Scatter(
-        x=risk_range * 100,
-        y=npv_range,
-        mode='lines',
-        name='Negative Test Accuracy',
-        line=dict(color='blue', width=3),
-        hovertemplate="<b>Risk: %{x:.2f}%</b><br>Negative test accuracy: %{y:.1f}%<extra></extra>"
-    ))
-    
-    # Add current risk marker
-    current_risk = df[df["Cancer Type"] == selected_cancer]["Your Cancer Risk (%)"].iloc[0]
-    current_ppv = df[df["Cancer Type"] == selected_cancer]["Positive Test Accuracy (%)"].iloc[0]
-    current_npv = df[df["Cancer Type"] == selected_cancer]["Negative Test Accuracy (%)"].iloc[0]
-    
-    fig_risk.add_trace(go.Scatter(
-        x=[current_risk, current_risk],
-        y=[current_ppv, current_npv],
-        mode='markers',
-        name='Your Current Risk',
-        marker=dict(size=15, color='green', symbol='diamond'),
-        hovertemplate="<b>Your current risk</b><br>Risk: %{x:.3f}%<br>Accuracy: %{y:.1f}%<extra></extra>"
-    ))
-    
-    fig_risk.update_layout(
-        title=f'How Test Accuracy Changes with Cancer Risk - {selected_cancer}',
-        xaxis_title='Cancer Risk (%)',
-        yaxis_title='Test Accuracy (%)',
-        xaxis_type='log',
-        height=500,
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
-    )
-    
-    st.plotly_chart(fig_risk, use_container_width=True)
-    
-    st.markdown(f"""
-    **💡 Key Insight:** As cancer becomes more common in a population, positive tests become more accurate. 
-    For {selected_cancer.lower()} cancer, if the risk increased to 5%, positive test accuracy would be 
-    {calculate_ppv_npv(sensitivity, specificity, 0.05)[0]*100:.1f}%.
-    """)
