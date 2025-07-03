@@ -288,80 +288,83 @@ fig_fp.update_layout(
 
 st.plotly_chart(fig_fp, use_container_width=True)
 
-# Test performance visualization with clear labels
-st.subheader("Detailed Test Performance")
+# Test performance visualization - simplified and clearer
+st.subheader("Test Performance Analysis")
 
+# Create two meaningful charts instead of four confusing ones
 fig = make_subplots(
-    rows=2, cols=2,
+    rows=1, cols=2,
     subplot_titles=(
-        'Cancer Detection Rate (How often test finds cancer when present)', 
-        'Test Accuracy Rate (How often test correctly identifies no cancer)',
-        'Positive Test Reliability (When test says cancer, probability it\'s correct)', 
-        'Your Current Cancer Risk by Type'
+        'Test Trade-offs: Detection vs False Positives', 
+        'Personal Risk Assessment'
     ),
-    specs=[[{"secondary_y": False}, {"secondary_y": False}],
-           [{"secondary_y": False}, {"secondary_y": False}]]
+    specs=[[{"secondary_y": False}, {"secondary_y": False}]]
 )
 
-# Detection rate (sensitivity)
+# Chart 1: Detection rate vs False positive rate (more meaningful comparison)
 fig.add_trace(
-    go.Bar(
-        x=df["Cancer Type"], 
-        y=df["Detection Rate"], 
-        marker_color='coral', 
+    go.Scatter(
+        x=df["False Positive Risk"], 
+        y=df["Detection Rate"],
+        mode='markers+text',
+        text=df["Cancer Type"],
+        textposition="top center",
+        marker=dict(size=12, color='steelblue'),
         showlegend=False,
-        hovertemplate="<b>%{x}</b><br>Detects %{y}% of cancers when present<extra></extra>"
+        hovertemplate="<b>%{text}</b><br>Detection Rate: %{y}%<br>False Positive Risk: %{x}%<br><extra></extra>"
     ),
     row=1, col=1
 )
 
-# Accuracy rate (specificity)
+# Chart 2: Only show cancers where user has meaningful risk (>0.01%)
+meaningful_risk_df = df[df["Pre-test Risk"] > 0.01].copy()
+if len(meaningful_risk_df) == 0:
+    meaningful_risk_df = df.nlargest(3, "Pre-test Risk")  # Show top 3 if all risks are very low
+
+# Risk reduction chart (more actionable than absolute risk)
 fig.add_trace(
     go.Bar(
-        x=df["Cancer Type"], 
-        y=df["Accuracy Rate"], 
-        marker_color='lightblue', 
+        x=meaningful_risk_df["Cancer Type"], 
+        y=meaningful_risk_df["Risk Reduction"], 
+        marker_color='forestgreen', 
         showlegend=False,
-        hovertemplate="<b>%{x}</b><br>Correctly identifies %{y}% of people without cancer<extra></extra>"
+        hovertemplate="<b>%{x}</b><br>Negative test reduces your cancer probability by %{y}%<extra></extra>"
     ),
     row=1, col=2
 )
 
-# Positive accuracy (PPV) with color coding
-colors = ['red' if x < 10 else 'orange' if x < 50 else 'green' 
-          for x in df["Positive Accuracy"]]
-
-fig.add_trace(
-    go.Bar(
-        x=df["Cancer Type"], 
-        y=df["Positive Accuracy"], 
-        marker_color=colors, 
-        showlegend=False,
-        hovertemplate="<b>%{x}</b><br>When test is positive, %{y}% chance you actually have cancer<extra></extra>"
-    ),
-    row=2, col=1
+fig.update_layout(
+    height=500, 
+    showlegend=False
 )
 
-# Current risk profile
-fig.add_trace(
-    go.Bar(
-        x=df["Cancer Type"], 
-        y=df["Pre-test Risk"], 
-        marker_color='gold', 
-        showlegend=False,
-        hovertemplate="<b>%{x}</b><br>Your current probability of having this cancer: %{y}%<extra></extra>"
-    ),
-    row=2, col=2
-)
-
-fig.update_layout(height=700, showlegend=False)
-fig.update_yaxes(title_text="Detection Rate (%)", row=1, col=1)
-fig.update_yaxes(title_text="Accuracy Rate (%)", row=1, col=2)
-fig.update_yaxes(title_text="Reliability (%)", row=2, col=1)
-fig.update_yaxes(title_text="Current Risk (%)", row=2, col=2)
-fig.update_xaxes(tickangle=45)
+fig.update_xaxes(title_text="False Positive Risk (%)", row=1, col=1)
+fig.update_yaxes(title_text="Cancer Detection Rate (%)", row=1, col=1)
+fig.update_xaxes(title_text="Cancer Type", row=1, col=2)
+fig.update_yaxes(title_text="Risk Reduction from Negative Test (%)", row=1, col=2)
+fig.update_xaxes(tickangle=45, row=1, col=2)
 
 st.plotly_chart(fig, use_container_width=True)
+
+# Add explanatory text for the charts
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown("""
+    **Test Trade-offs Chart:**
+    - **Upper left** = Good detection, low false positives (ideal)
+    - **Lower right** = Poor detection, high false positives (worst)
+    - Each point represents a different cancer type
+    """)
+
+with col2:
+    highest_risk_cancers = df.nlargest(3, "Pre-test Risk")["Cancer Type"].tolist()
+    st.markdown(f"""
+    **Personal Risk Chart:**
+    - Shows how much confidence a negative test gives you
+    - Only displays cancers where you have meaningful risk
+    - Your top risk areas: {', '.join(highest_risk_cancers[:2])}
+    """)
 
 # Risk reduction summary table
 st.subheader("Risk Reduction Summary")
