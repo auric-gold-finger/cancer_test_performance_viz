@@ -415,15 +415,6 @@ if any([smoking_status != "Never smoked", family_history, genetic_mutations, per
 else:
     st.info("You have reported no major cancer risk factors")
 
-# Clear explanation of risk measures
-st.markdown("""
-**Risk Definitions:**
-- **Baseline Risk**: Average cancer probability for someone your age and sex
-- **Your Risk**: Your personalized probability considering risk factors
-- **Post-test Risk (if negative)**: Your probability of still having cancer even after a negative test result
-- **False Positive Risk**: Probability the test will incorrectly say you have cancer when you don't
-""")
-
 # Risk comparison section
 st.subheader("Cancer Risk: Before Testing vs After Negative Test")
 st.markdown("*This shows how much a negative test reduces your cancer probability*")
@@ -473,14 +464,16 @@ with col1:
         f"{downstream_info['false_positive_rate']}%",
         help="Percentage of people without cancer who get incorrect positive results"
     )
-    
-    st.markdown(f"""
-    **What happens after a positive test:**
-    {downstream_info['typical_followup']}
-    
-    **Complication rate from follow-up procedures:**
-    {downstream_info['followup_complications']}%
-    """)
+
+    st.metric(
+        "Downstream Testing",
+        f"{downstream_info['typical_followup']}"
+    )
+
+    st.metric(
+        "Complication Rates from follow-up",
+        f"{downstream_info['followup_complications']}"
+    )
 
 with col2:
     st.markdown(f"""
