@@ -48,6 +48,31 @@ TEST_PERFORMANCE = {
     }
 }
 
+# Downstream testing and complication risks
+DOWNSTREAM_RISKS = {
+    "Whole-body MRI": {
+        "false_positive_rate": 8.5,  # Average across cancer types
+        "typical_followup": "Additional MRI with contrast, possible biopsy",
+        "followup_complications": 2.1,  # Contrast reactions, biopsy complications
+        "psychological_impact": "Moderate - incidental findings cause anxiety",
+        "radiation_exposure": "None from MRI, possible CT follow-up"
+    },
+    "Grail Blood Test": {
+        "false_positive_rate": 0.5,
+        "typical_followup": "Imaging scans (CT, MRI, PET), possible biopsy",
+        "followup_complications": 3.8,  # Multiple imaging, biopsy risks
+        "psychological_impact": "High - positive blood test causes significant anxiety",
+        "radiation_exposure": "Moderate to high from follow-up CT/PET scans"
+    },
+    "CT Scan": {
+        "false_positive_rate": 23.3,  # Average across applications
+        "typical_followup": "Repeat CT, additional imaging, possible biopsy",
+        "followup_complications": 4.2,  # Additional radiation, biopsy complications
+        "psychological_impact": "Moderate to high - abnormal findings cause worry",
+        "radiation_exposure": "Additional radiation from repeat scans"
+    }
+}
+
 # Real US cancer incidence rates per 100,000 (SEER/CDC 2018-2022 data)
 CANCER_INCIDENCE = {
     "lung": {
@@ -91,11 +116,11 @@ def calculate_ppv_npv(sensitivity, specificity, prevalence):
     return ppv, npv
 
 def calculate_post_test_risk_negative(sensitivity, prevalence):
-    """Calculate cancer risk after a negative test"""
+    """Calculate probability you still have cancer after a negative test"""
     return ((1 - sensitivity) * prevalence) / ((1 - sensitivity) * prevalence + 1 - prevalence)
 
 def get_prevalence_from_incidence(incidence_rate):
-    """Convert yearly cancer rate to prevalence"""
+    """Convert yearly cancer rate to current prevalence"""
     return (incidence_rate / 100000) * 5
 
 def interpolate_incidence(age, sex, cancer_type):
@@ -150,16 +175,18 @@ for cancer_type in cancer_types:
     
     ppv, npv = calculate_ppv_npv(sensitivity, specificity, prevalence)
     post_test_risk = calculate_post_test_risk_negative(sensitivity, prevalence)
+    false_positive_risk = (1 - specificity) * (1 - prevalence)
     
     results.append({
         "Cancer Type": cancer_type.replace("_", " ").title(),
-        "Detection Rate": round(sensitivity * 100, 1),
-        "Accuracy Rate": round(specificity * 100, 1),
         "Pre-test Risk": round(prevalence * 100, 3),
         "Post-test Risk (if negative)": round(post_test_risk * 100, 4),
+        "Risk Reduction": round(((prevalence - post_test_risk) / prevalence) * 100, 1),
+        "False Positive Risk": round(false_positive_risk * 100, 2),
+        "Detection Rate": round(sensitivity * 100, 1),
+        "Accuracy Rate": round(specificity * 100, 1),
         "Positive Accuracy": round(ppv * 100, 1),
-        "Negative Accuracy": round(npv * 100, 1),
-        "Risk Reduction": round(((prevalence - post_test_risk) / prevalence) * 100, 1)
+        "Negative Accuracy": round(npv * 100, 1)
     })
 
 df = pd.DataFrame(results)
@@ -167,137 +194,258 @@ df = pd.DataFrame(results)
 # Main content
 st.subheader(f"Test Performance: {test_type}")
 
-# Summary metrics
-col1, col2, col3 = st.columns(3)
-with col1:
-    avg_detection = df["Detection Rate"].mean()
-    st.metric("Average Detection Rate", f"{avg_detection:.1f}%")
-with col2:
-    avg_accuracy = df["Accuracy Rate"].mean()
-    st.metric("Average Accuracy Rate", f"{avg_accuracy:.1f}%")
-with col3:
-    avg_positive_accuracy = df["Positive Accuracy"].mean()
-    st.metric("Average Positive Test Accuracy", f"{avg_positive_accuracy:.1f}%")
+# Clear explanation of risk measures
+st.markdown("""
+**Risk Definitions:**
+- **Pre-test Risk**: Your probability of having cancer right now, before any testing
+- **Post-test Risk (if negative)**: Your probability of still having cancer even after a negative test result
+- **False Positive Risk**: Probability the test will incorrectly say you have cancer when you don't
+""")
 
 # Risk comparison section
-st.subheader("Risk Profile: Before vs After Negative Test")
+st.subheader("Cancer Risk: Before Testing vs After Negative Test")
+st.markdown("*This shows how much a negative test reduces your cancer probability*")
 
-# Create side-by-side comparison
-comparison_data = []
-for _, row in df.iterrows():
-    comparison_data.append({
-        "Cancer Type": row["Cancer Type"],
-        "Before Test": row["Pre-test Risk"],
-        "After Negative Test": row["Post-test Risk (if negative)"],
-        "Risk Reduction": row["Risk Reduction"]
-    })
-
-comparison_df = pd.DataFrame(comparison_data)
-
-# Visualization of risk reduction
+# Create side-by-side comparison chart
 fig_comparison = go.Figure()
 
 fig_comparison.add_trace(go.Bar(
-    name='Before Test',
-    x=comparison_df["Cancer Type"],
-    y=comparison_df["Before Test"],
-    marker_color='lightblue',
-    opacity=0.8
+    name='Probability You Have Cancer Now',
+    x=df["Cancer Type"],
+    y=df["Pre-test Risk"],
+    marker_color='lightcoral',
+    opacity=0.8,
+    hovertemplate="<b>%{x}</b><br>Probability you have cancer now: %{y}%<extra></extra>"
 ))
 
 fig_comparison.add_trace(go.Bar(
-    name='After Negative Test',
-    x=comparison_df["Cancer Type"],
-    y=comparison_df["After Negative Test"],
-    marker_color='darkblue',
-    opacity=0.8
+    name='Probability You Still Have Cancer After Negative Test',
+    x=df["Cancer Type"],
+    y=df["Post-test Risk (if negative)"],
+    marker_color='darkred',
+    opacity=0.8,
+    hovertemplate="<b>%{x}</b><br>Probability you still have cancer after negative test: %{y}%<extra></extra>"
 ))
 
 fig_comparison.update_layout(
-    title='Cancer Risk Before and After Negative Test Result',
+    title='Your Cancer Probability: Current Risk vs Risk After Negative Test',
     xaxis_title='Cancer Type',
-    yaxis_title='Risk (%)',
+    yaxis_title='Probability of Having Cancer (%)',
     barmode='group',
-    height=400
+    height=500,
+    legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
 )
 
 st.plotly_chart(fig_comparison, use_container_width=True)
 
-# Risk reduction table
-st.subheader("Risk Reduction Summary")
-st.markdown("How much a negative test reduces your cancer risk:")
+# False positive and downstream risks
+st.subheader("False Positive and Downstream Testing Risks")
 
-formatted_comparison = comparison_df.copy()
-formatted_comparison["Before Test"] = formatted_comparison["Before Test"].round(3)
-formatted_comparison["After Negative Test"] = formatted_comparison["After Negative Test"].round(4)
-formatted_comparison["Risk Reduction"] = formatted_comparison["Risk Reduction"].round(1)
+downstream_info = DOWNSTREAM_RISKS[test_type]
 
-st.dataframe(
-    formatted_comparison,
-    use_container_width=True,
-    column_config={
-        "Cancer Type": "Cancer Type",
-        "Before Test": st.column_config.NumberColumn("Before Test (%)", format="%.3f"),
-        "After Negative Test": st.column_config.NumberColumn("After Negative Test (%)", format="%.4f"),
-        "Risk Reduction": st.column_config.NumberColumn("Risk Reduction (%)", format="%.1f")
-    }
+col1, col2 = st.columns(2)
+
+with col1:
+    st.metric(
+        "False Positive Rate", 
+        f"{downstream_info['false_positive_rate']}%",
+        help="Percentage of people without cancer who get incorrect positive results"
+    )
+    
+    st.markdown(f"""
+    **What happens after a positive test:**
+    {downstream_info['typical_followup']}
+    
+    **Complication rate from follow-up procedures:**
+    {downstream_info['followup_complications']}%
+    """)
+
+with col2:
+    st.markdown(f"""
+    **Psychological impact:**
+    {downstream_info['psychological_impact']}
+    
+    **Additional radiation exposure:**
+    {downstream_info['radiation_exposure']}
+    """)
+
+# False positive risk by cancer type
+fig_fp = go.Figure()
+
+fig_fp.add_trace(go.Bar(
+    x=df["Cancer Type"],
+    y=df["False Positive Risk"],
+    marker_color='orange',
+    hovertemplate="<b>%{x}</b><br>False positive risk: %{y}%<br>This is your chance of getting an incorrect positive result<extra></extra>"
+))
+
+fig_fp.update_layout(
+    title='False Positive Risk by Cancer Type',
+    xaxis_title='Cancer Type',
+    yaxis_title='Probability of False Positive Result (%)',
+    height=400
 )
 
-# Test performance visualization
+st.plotly_chart(fig_fp, use_container_width=True)
+
+# Test performance visualization with clear labels
 st.subheader("Detailed Test Performance")
 
 fig = make_subplots(
     rows=2, cols=2,
-    subplot_titles=('Detection Rate by Cancer Type', 'Accuracy Rate by Cancer Type', 
-                   'Positive Test Accuracy', 'Your Cancer Risk Profile'),
+    subplot_titles=(
+        'Cancer Detection Rate (How often test finds cancer when present)', 
+        'Test Accuracy Rate (How often test correctly identifies no cancer)',
+        'Positive Test Reliability (When test says cancer, probability it\'s correct)', 
+        'Your Current Cancer Risk by Type'
+    ),
     specs=[[{"secondary_y": False}, {"secondary_y": False}],
            [{"secondary_y": False}, {"secondary_y": False}]]
 )
 
-# Detection rate
+# Detection rate (sensitivity)
 fig.add_trace(
-    go.Bar(x=df["Cancer Type"], y=df["Detection Rate"], 
-           marker_color='coral', showlegend=False),
+    go.Bar(
+        x=df["Cancer Type"], 
+        y=df["Detection Rate"], 
+        marker_color='coral', 
+        showlegend=False,
+        hovertemplate="<b>%{x}</b><br>Detects %{y}% of cancers when present<extra></extra>"
+    ),
     row=1, col=1
 )
 
-# Accuracy rate
+# Accuracy rate (specificity)
 fig.add_trace(
-    go.Bar(x=df["Cancer Type"], y=df["Accuracy Rate"], 
-           marker_color='lightblue', showlegend=False),
+    go.Bar(
+        x=df["Cancer Type"], 
+        y=df["Accuracy Rate"], 
+        marker_color='lightblue', 
+        showlegend=False,
+        hovertemplate="<b>%{x}</b><br>Correctly identifies %{y}% of people without cancer<extra></extra>"
+    ),
     row=1, col=2
 )
 
-# Positive accuracy with color coding
+# Positive accuracy (PPV) with color coding
 colors = ['red' if x < 10 else 'orange' if x < 50 else 'green' 
           for x in df["Positive Accuracy"]]
 
 fig.add_trace(
-    go.Bar(x=df["Cancer Type"], y=df["Positive Accuracy"], 
-           marker_color=colors, showlegend=False),
+    go.Bar(
+        x=df["Cancer Type"], 
+        y=df["Positive Accuracy"], 
+        marker_color=colors, 
+        showlegend=False,
+        hovertemplate="<b>%{x}</b><br>When test is positive, %{y}% chance you actually have cancer<extra></extra>"
+    ),
     row=2, col=1
 )
 
-# Risk profile
+# Current risk profile
 fig.add_trace(
-    go.Bar(x=df["Cancer Type"], y=df["Pre-test Risk"], 
-           marker_color='gold', showlegend=False),
+    go.Bar(
+        x=df["Cancer Type"], 
+        y=df["Pre-test Risk"], 
+        marker_color='gold', 
+        showlegend=False,
+        hovertemplate="<b>%{x}</b><br>Your current probability of having this cancer: %{y}%<extra></extra>"
+    ),
     row=2, col=2
 )
 
-fig.update_layout(height=600, showlegend=False)
-fig.update_yaxes(title_text="Rate (%)", row=1, col=1)
-fig.update_yaxes(title_text="Rate (%)", row=1, col=2)
-fig.update_yaxes(title_text="Accuracy (%)", row=2, col=1)
-fig.update_yaxes(title_text="Risk (%)", row=2, col=2)
+fig.update_layout(height=700, showlegend=False)
+fig.update_yaxes(title_text="Detection Rate (%)", row=1, col=1)
+fig.update_yaxes(title_text="Accuracy Rate (%)", row=1, col=2)
+fig.update_yaxes(title_text="Reliability (%)", row=2, col=1)
+fig.update_yaxes(title_text="Current Risk (%)", row=2, col=2)
 fig.update_xaxes(tickangle=45)
 
 st.plotly_chart(fig, use_container_width=True)
 
+# Risk reduction summary table
+st.subheader("Risk Reduction Summary")
+st.markdown("*How much confidence a negative test provides*")
+
+risk_summary = df[["Cancer Type", "Pre-test Risk", "Post-test Risk (if negative)", 
+                  "Risk Reduction", "False Positive Risk"]].copy()
+
+st.dataframe(
+    risk_summary,
+    use_container_width=True,
+    column_config={
+        "Cancer Type": "Cancer Type",
+        "Pre-test Risk": st.column_config.NumberColumn(
+            "Current Risk (%)", 
+            format="%.3f",
+            help="Your probability of having this cancer right now"
+        ),
+        "Post-test Risk (if negative)": st.column_config.NumberColumn(
+            "Risk After Negative Test (%)", 
+            format="%.4f",
+            help="Your probability of still having cancer even after negative test"
+        ),
+        "Risk Reduction": st.column_config.NumberColumn(
+            "Risk Reduction (%)", 
+            format="%.1f",
+            help="Percentage reduction in cancer probability from negative test"
+        ),
+        "False Positive Risk": st.column_config.NumberColumn(
+            "False Positive Risk (%)", 
+            format="%.2f",
+            help="Your probability of getting incorrect positive result"
+        )
+    }
+)
+
+# Key insights with clear explanations
+st.subheader("Key Insights")
+
+best_risk_reduction = df.loc[df["Risk Reduction"].idxmax()]
+highest_false_positive = df.loc[df["False Positive Risk"].idxmax()]
+highest_current_risk = df.loc[df["Pre-test Risk"].idxmax()]
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown(f"""
+    **Most Reassuring Negative Test:**
+    {best_risk_reduction['Cancer Type']} provides {best_risk_reduction['Risk Reduction']}% risk reduction
+    
+    **Highest False Positive Risk:**
+    {highest_false_positive['Cancer Type']} has {highest_false_positive['False Positive Risk']}% chance of incorrect positive
+    """)
+
+with col2:
+    st.markdown(f"""
+    **Your Highest Current Risk:**
+    {highest_current_risk['Cancer Type']} at {highest_current_risk['Pre-test Risk']}% probability
+    
+    **Overall False Positive Rate:**
+    {downstream_info['false_positive_rate']}% of people without cancer get positive results
+    """)
+
+# Test-specific downstream risks
+st.subheader(f"Downstream Risks: {test_type}")
+
+st.markdown(f"""
+**If you get a positive result, you will likely need:**
+{downstream_info['typical_followup']}
+
+**Risks from follow-up testing:**
+- **Complication rate:** {downstream_info['followup_complications']}% chance of complications from additional procedures
+- **Psychological impact:** {downstream_info['psychological_impact']}
+- **Radiation exposure:** {downstream_info['radiation_exposure']}
+
+**False positive burden:** Out of 1,000 people without cancer who get this test, 
+{int(downstream_info['false_positive_rate'] * 10)} will receive incorrect positive results and undergo unnecessary follow-up.
+""")
+
 # Complete results table
-st.subheader("Complete Results")
+st.subheader("Complete Test Performance Data")
+
 display_df = df[["Cancer Type", "Detection Rate", "Accuracy Rate", "Pre-test Risk", 
-                "Positive Accuracy", "Negative Accuracy"]].copy()
+                "Positive Accuracy", "Negative Accuracy", "False Positive Risk"]].copy()
 
 st.dataframe(
     display_df,
@@ -306,78 +454,23 @@ st.dataframe(
         "Cancer Type": "Cancer Type",
         "Detection Rate": st.column_config.NumberColumn("Detection Rate (%)", format="%.1f"),
         "Accuracy Rate": st.column_config.NumberColumn("Accuracy Rate (%)", format="%.1f"),
-        "Pre-test Risk": st.column_config.NumberColumn("Your Risk (%)", format="%.3f"),
-        "Positive Accuracy": st.column_config.NumberColumn("Positive Accuracy (%)", format="%.1f"),
-        "Negative Accuracy": st.column_config.NumberColumn("Negative Accuracy (%)", format="%.1f")
+        "Pre-test Risk": st.column_config.NumberColumn("Current Risk (%)", format="%.3f"),
+        "Positive Accuracy": st.column_config.NumberColumn("Positive Reliability (%)", format="%.1f"),
+        "Negative Accuracy": st.column_config.NumberColumn("Negative Reliability (%)", format="%.1f"),
+        "False Positive Risk": st.column_config.NumberColumn("False Positive Risk (%)", format="%.2f")
     }
 )
-
-# Key insights
-st.subheader("Key Insights")
-
-best_detection = df.loc[df["Detection Rate"].idxmax()]
-best_risk_reduction = df.loc[df["Risk Reduction"].idxmax()]
-highest_risk = df.loc[df["Pre-test Risk"].idxmax()]
-
-col1, col2 = st.columns(2)
-
-with col1:
-    st.markdown(f"""
-    **Test Performance:**
-    - Best detection: {best_detection['Cancer Type']} ({best_detection['Detection Rate']}%)
-    - Highest risk reduction from negative test: {best_risk_reduction['Cancer Type']} ({best_risk_reduction['Risk Reduction']}%)
-    """)
-
-with col2:
-    st.markdown(f"""
-    **Your Risk Profile:**
-    - Highest personal risk: {highest_risk['Cancer Type']} ({highest_risk['Pre-test Risk']}%)
-    - Average positive test accuracy: {avg_positive_accuracy:.1f}%
-    """)
-
-# Test-specific information
-st.subheader(f"About {test_type}")
-
-test_info = {
-    "Grail Blood Test": {
-        "description": "Blood test that detects cancer DNA fragments",
-        "strengths": ["Very low false positive rate (0.5%)", "Simple blood draw", "Multiple cancer types"],
-        "limitations": ["Misses many early cancers", "Expensive", "New technology"]
-    },
-    "Whole-body MRI": {
-        "description": "Magnetic resonance imaging of entire body",
-        "strengths": ["No radiation", "Detailed images", "Good for soft tissues"],
-        "limitations": ["Expensive", "Time consuming", "Many incidental findings"]
-    },
-    "CT Scan": {
-        "description": "X-ray computed tomography scan",
-        "strengths": ["Fast", "Widely available", "Good for lung screening"],
-        "limitations": ["Radiation exposure", "Higher false positive rates", "Limited to certain cancers"]
-    }
-}
-
-info = test_info[test_type]
-st.write(f"**Description:** {info['description']}")
-
-col1, col2 = st.columns(2)
-with col1:
-    st.write("**Strengths:**")
-    for strength in info['strengths']:
-        st.write(f"- {strength}")
-
-with col2:
-    st.write("**Limitations:**")
-    for limitation in info['limitations']:
-        st.write(f"- {limitation}")
 
 # Disclaimers
 st.markdown("---")
 st.warning("""
 **Important:** This tool is for educational purposes only. Always consult healthcare providers 
 for medical decisions. Test performance varies based on individual factors not captured here.
+Downstream complication rates are estimates based on published literature.
 """)
 
 st.info("""
 **Data Sources:** Clinical trial data from CCGA validation study (Grail), NLST trial (CT), 
-systematic reviews (MRI), and SEER/CDC cancer statistics (2018-2022).
+systematic reviews (MRI), SEER/CDC cancer statistics (2018-2022), and published studies on 
+screening follow-up procedures and complications.
 """)
