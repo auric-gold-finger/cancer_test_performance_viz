@@ -300,6 +300,8 @@ if use_custom_probability:
     )
 
 # Calculate personalized risk multipliers
+cancer_types = list(TEST_PERFORMANCE[test_type].keys())
+
 risk_multipliers = {}
 for cancer_type in cancer_types:
     if cancer_type == "prostate" and sex == "female":
@@ -317,7 +319,6 @@ personalized_overall_prevalence = calculate_overall_cancer_prevalence(age, sex, 
 
 # Calculate results
 results = []
-cancer_types = list(TEST_PERFORMANCE[test_type].keys())
 
 for cancer_type in cancer_types:
     if cancer_type == "prostate" and sex == "female":
