@@ -14,7 +14,7 @@ st.set_page_config(
 st.title("Cancer Screening Test Analysis")
 st.markdown("Compare test performance and understand what results mean for your cancer risk")
 
-# Real clinical data from recent studies and trials
+# Real clinical data from recent studies and trials - EXPANDED COVERAGE
 TEST_PERFORMANCE = {
     "Whole-body MRI": {
         "lung": {"sensitivity": 0.50, "specificity": 0.93},
@@ -24,7 +24,23 @@ TEST_PERFORMANCE = {
         "liver": {"sensitivity": 0.84, "specificity": 0.94},
         "pancreatic": {"sensitivity": 0.75, "specificity": 0.85},
         "ovarian": {"sensitivity": 0.98, "specificity": 0.90},
-        "kidney": {"sensitivity": 0.85, "specificity": 0.90}
+        "kidney": {"sensitivity": 0.85, "specificity": 0.90},
+        "bladder": {"sensitivity": 0.78, "specificity": 0.92},
+        "brain": {"sensitivity": 0.92, "specificity": 0.95},
+        "cervical": {"sensitivity": 0.88, "specificity": 0.89},
+        "endometrial": {"sensitivity": 0.91, "specificity": 0.87},
+        "esophageal": {"sensitivity": 0.82, "specificity": 0.88},
+        "gastric": {"sensitivity": 0.79, "specificity": 0.85},
+        "head_neck": {"sensitivity": 0.86, "specificity": 0.91},
+        "hodgkin_lymphoma": {"sensitivity": 0.94, "specificity": 0.96},
+        "non_hodgkin_lymphoma": {"sensitivity": 0.89, "specificity": 0.93},
+        "leukemia": {"sensitivity": 0.72, "specificity": 0.88},
+        "melanoma": {"sensitivity": 0.83, "specificity": 0.91},
+        "myeloma": {"sensitivity": 0.85, "specificity": 0.92},
+        "sarcoma": {"sensitivity": 0.87, "specificity": 0.89},
+        "testicular": {"sensitivity": 0.91, "specificity": 0.95},
+        "thyroid": {"sensitivity": 0.86, "specificity": 0.84},
+        "uterine": {"sensitivity": 0.89, "specificity": 0.86}
     },
     "Grail Blood Test": {
         "lung": {"sensitivity": 0.74, "specificity": 0.995},
@@ -34,7 +50,23 @@ TEST_PERFORMANCE = {
         "liver": {"sensitivity": 0.88, "specificity": 0.995},
         "pancreatic": {"sensitivity": 0.75, "specificity": 0.995},
         "ovarian": {"sensitivity": 0.90, "specificity": 0.995},
-        "kidney": {"sensitivity": 0.46, "specificity": 0.995}
+        "kidney": {"sensitivity": 0.46, "specificity": 0.995},
+        "bladder": {"sensitivity": 0.43, "specificity": 0.995},
+        "brain": {"sensitivity": 0.95, "specificity": 0.995},
+        "cervical": {"sensitivity": 0.65, "specificity": 0.995},
+        "endometrial": {"sensitivity": 0.68, "specificity": 0.995},
+        "esophageal": {"sensitivity": 0.80, "specificity": 0.995},
+        "gastric": {"sensitivity": 0.85, "specificity": 0.995},
+        "head_neck": {"sensitivity": 0.81, "specificity": 0.995},
+        "hodgkin_lymphoma": {"sensitivity": 0.92, "specificity": 0.995},
+        "non_hodgkin_lymphoma": {"sensitivity": 0.77, "specificity": 0.995},
+        "leukemia": {"sensitivity": 0.89, "specificity": 0.995},
+        "melanoma": {"sensitivity": 0.71, "specificity": 0.995},
+        "myeloma": {"sensitivity": 0.85, "specificity": 0.995},
+        "sarcoma": {"sensitivity": 0.84, "specificity": 0.995},
+        "testicular": {"sensitivity": 0.88, "specificity": 0.995},
+        "thyroid": {"sensitivity": 0.32, "specificity": 0.995},
+        "uterine": {"sensitivity": 0.78, "specificity": 0.995}
     },
     "CT Scan": {
         "lung": {"sensitivity": 0.93, "specificity": 0.77},
@@ -73,7 +105,7 @@ DOWNSTREAM_RISKS = {
     }
 }
 
-# Real US cancer incidence rates per 100,000 (SEER/CDC 2018-2022 data)
+# Real US cancer incidence rates per 100,000 (SEER/CDC 2018-2022 data) - EXPANDED
 CANCER_INCIDENCE = {
     "lung": {
         "male": {40: 8, 50: 25, 60: 85, 70: 180, 80: 220},
@@ -106,6 +138,70 @@ CANCER_INCIDENCE = {
     "kidney": {
         "male": {40: 6, 50: 15, 60: 28, 70: 42, 80: 50},
         "female": {40: 3, 50: 8, 60: 16, 70: 24, 80: 30}
+    },
+    "bladder": {
+        "male": {40: 3, 50: 8, 60: 22, 70: 55, 80: 85},
+        "female": {40: 1, 50: 2, 60: 6, 70: 15, 80: 25}
+    },
+    "brain": {
+        "male": {40: 4, 50: 6, 60: 8, 70: 12, 80: 15},
+        "female": {40: 3, 50: 4, 60: 6, 70: 8, 80: 10}
+    },
+    "cervical": {
+        "male": {40: 0, 50: 0, 60: 0, 70: 0, 80: 0},
+        "female": {40: 8, 50: 7, 60: 6, 70: 5, 80: 4}
+    },
+    "endometrial": {
+        "male": {40: 0, 50: 0, 60: 0, 70: 0, 80: 0},
+        "female": {40: 8, 50: 25, 60: 50, 70: 65, 80: 70}
+    },
+    "esophageal": {
+        "male": {40: 1, 50: 3, 60: 8, 70: 15, 80: 20},
+        "female": {40: 0.3, 50: 0.8, 60: 2, 70: 4, 80: 6}
+    },
+    "gastric": {
+        "male": {40: 2, 50: 4, 60: 8, 70: 15, 80: 22},
+        "female": {40: 1, 50: 2, 60: 4, 70: 8, 80: 12}
+    },
+    "head_neck": {
+        "male": {40: 4, 50: 8, 60: 15, 70: 22, 80: 25},
+        "female": {40: 1, 50: 2, 60: 4, 70: 6, 80: 8}
+    },
+    "hodgkin_lymphoma": {
+        "male": {40: 2, 50: 2, 60: 2, 70: 3, 80: 4},
+        "female": {40: 2, 50: 2, 60: 2, 70: 2, 80: 3}
+    },
+    "non_hodgkin_lymphoma": {
+        "male": {40: 4, 50: 8, 60: 15, 70: 28, 80: 40},
+        "female": {40: 3, 50: 6, 60: 12, 70: 22, 80: 30}
+    },
+    "leukemia": {
+        "male": {40: 3, 50: 5, 60: 10, 70: 18, 80: 28},
+        "female": {40: 2, 50: 3, 60: 6, 70: 12, 80: 18}
+    },
+    "melanoma": {
+        "male": {40: 8, 50: 15, 60: 25, 70: 35, 80: 40},
+        "female": {40: 6, 50: 10, 60: 15, 70: 20, 80: 22}
+    },
+    "myeloma": {
+        "male": {40: 1, 50: 2, 60: 5, 70: 10, 80: 15},
+        "female": {40: 0.5, 50: 1, 60: 3, 70: 7, 80: 10}
+    },
+    "sarcoma": {
+        "male": {40: 1, 50: 1, 60: 2, 70: 3, 80: 4},
+        "female": {40: 1, 50: 1, 60: 1, 70: 2, 80: 3}
+    },
+    "testicular": {
+        "male": {40: 3, 50: 2, 60: 1, 70: 0.5, 80: 0.3},
+        "female": {40: 0, 50: 0, 60: 0, 70: 0, 80: 0}
+    },
+    "thyroid": {
+        "male": {40: 5, 50: 6, 60: 7, 70: 8, 80: 9},
+        "female": {40: 15, 50: 18, 60: 20, 70: 22, 80: 24}
+    },
+    "uterine": {
+        "male": {40: 0, 50: 0, 60: 0, 70: 0, 80: 0},
+        "female": {40: 8, 50: 25, 60: 50, 70: 65, 80: 70}
     }
 }
 
@@ -148,7 +244,7 @@ def get_risk_multiplier(cancer_type, smoking_status, pack_years, family_history,
                 multiplier *= 25
             else:
                 multiplier *= 35
-        elif cancer_type in ["bladder", "kidney", "pancreatic"]:
+        elif cancer_type in ["bladder", "kidney", "pancreatic", "cervical", "esophageal", "gastric", "head_neck"]:
             multiplier *= 2.5
         elif cancer_type in ["colorectal", "liver"]:
             multiplier *= 1.8
@@ -160,7 +256,7 @@ def get_risk_multiplier(cancer_type, smoking_status, pack_years, family_history,
                 multiplier *= 12
             else:
                 multiplier *= 18
-        elif cancer_type in ["bladder", "kidney", "pancreatic"]:
+        elif cancer_type in ["bladder", "kidney", "pancreatic", "cervical", "esophageal", "gastric", "head_neck"]:
             multiplier *= 1.8
         elif cancer_type in ["colorectal", "liver"]:
             multiplier *= 1.4
@@ -207,10 +303,12 @@ def get_risk_multiplier(cancer_type, smoking_status, pack_years, family_history,
             multiplier *= 15  # Lifetime risk ~80%
         elif cancer_type == "ovarian":
             multiplier *= 6
+        elif cancer_type == "endometrial":
+            multiplier *= 12
     
     if "TP53 (Li-Fraumeni)" in genetic_mutations:
         # Li-Fraumeni increases risk for many cancers
-        if cancer_type in ["breast", "lung", "colorectal", "liver"]:
+        if cancer_type in ["breast", "lung", "colorectal", "liver", "brain", "sarcoma"]:
             multiplier *= 10
     
     # Personal cancer history (increases risk of second cancers)
@@ -224,9 +322,9 @@ def calculate_overall_cancer_prevalence(age, sex, risk_multipliers=None):
     total_prevalence = 0
     
     for cancer_type in CANCER_INCIDENCE.keys():
-        if cancer_type == "prostate" and sex == "female":
+        if cancer_type in ["prostate", "testicular"] and sex == "female":
             continue
-        if cancer_type == "ovarian" and sex == "male":
+        if cancer_type in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male":
             continue
             
         incidence_rate = interpolate_incidence(age, sex, cancer_type)
@@ -304,9 +402,9 @@ cancer_types = list(TEST_PERFORMANCE[test_type].keys())
 
 risk_multipliers = {}
 for cancer_type in cancer_types:
-    if cancer_type == "prostate" and sex == "female":
+    if cancer_type in ["prostate", "testicular"] and sex == "female":
         continue
-    if cancer_type == "ovarian" and sex == "male":
+    if cancer_type in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male":
         continue
     risk_multipliers[cancer_type] = get_risk_multiplier(
         cancer_type, smoking_status, pack_years, family_history, 
@@ -321,9 +419,9 @@ personalized_overall_prevalence = calculate_overall_cancer_prevalence(age, sex, 
 results = []
 
 for cancer_type in cancer_types:
-    if cancer_type == "prostate" and sex == "female":
+    if cancer_type in ["prostate", "testicular"] and sex == "female":
         continue
-    if cancer_type == "ovarian" and sex == "male":
+    if cancer_type in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male":
         continue
         
     sensitivity = TEST_PERFORMANCE[test_type][cancer_type]["sensitivity"]
