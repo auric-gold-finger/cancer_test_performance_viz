@@ -450,22 +450,3 @@ fig_comparison.update_layout(
 )
 
 st.plotly_chart(fig_comparison, use_container_width=True)
-
-# False positive and downstream risks
-st.subheader("False Positive and Downstream Testing Risks")
-
-downstream_info = DOWNSTREAM_RISKS[test_type]
-
-col1, col2 = st.columns(2)
-
-with col1:
-    st.metric(
-        "False Positive Rate", 
-        f"{downstream_info['false_positive_rate']}%",
-        help="Percentage of people without cancer who get incorrect positive results"
-    )
-with col2:
-    st.metric(
-        "Complication Rates from follow-up",
-        f"{downstream_info['followup_complications']}%"
-    )
