@@ -456,7 +456,7 @@ st.subheader("False Positive and Downstream Testing Risks")
 
 downstream_info = DOWNSTREAM_RISKS[test_type]
 
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 
 with col1:
     st.metric(
@@ -464,14 +464,7 @@ with col1:
         f"{downstream_info['false_positive_rate']}%",
         help="Percentage of people without cancer who get incorrect positive results"
     )
-
 with col2:
-    st.metric(
-        "Downstream Testing",
-        f"{downstream_info['typical_followup']}"
-    )
-
-with col3:
     st.metric(
         "Complication Rates from follow-up",
         f"{downstream_info['followup_complications']}"
