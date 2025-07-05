@@ -542,6 +542,7 @@ fig_comparison.update_layout(
     title='Your Cancer Risk: Current vs After Negative Test',
     xaxis_title='Cancer Type',
     yaxis_title='Probability of Having Cancer (%)',
+    yaxis=dict(range=[0, 100]),
     barmode='group',
     height=500,
     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
