@@ -249,7 +249,7 @@ def calculate_overall_prevalence(age, sex, risk_multipliers=None):
         if (cancer_type in ["prostate", "testicular"] and sex == "female") or (cancer_type in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male"):
             continue
         incidence_rate = interpolate_incidence(age, sex, cancer_type)
-        prevalence = (incidence_rate / 100000) * 5
+        prevalence = (incidence_rate / 100000) * 10  # Updated to 10-year risk for better alignment with screening detection rates
         if risk_multipliers and cancer_type in risk_multipliers:
             prevalence *= risk_multipliers[cancer_type]
         total_prevalence += prevalence
@@ -344,7 +344,7 @@ if tests:
                 "#1ABC9C", "#E67E22", "#E74C3C"
             ],
             x = [0, 0.2, 0.2, 0.4, 0.4, 0.6, 0.6, 0.8, 0.8, 0.8],
-            y = [0.5, 0.05, 0.95, 0.0, 0.25, 0.8, 0.95, -0.1, 0.15, 0.4],  # Further spread vertically to avoid overlap
+            y = [0.5, 0.0, 1.0, -0.05, 0.15, 0.85, 1.05, -0.15, 0.05, 0.25],  # Spread even more vertically to prevent overlap
         ),
         link = dict(
             source = [
