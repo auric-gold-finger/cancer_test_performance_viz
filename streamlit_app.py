@@ -30,8 +30,8 @@ st.set_page_config(page_title="Cancer Screening Outcomes", page_icon="📊", lay
 st.markdown("<h1 class='main-header'>Cancer Screening Outcomes Visualizer</h1>", unsafe_allow_html=True)
 st.markdown("Enter your details to see a personalized Sankey diagram of screening test outcomes for 100 people like you. Data as of July 2025. For education only—consult a doctor.")
 
-# Data structures (from original, updated)
-CANCER_INCIDENCE = {  # Same as before
+# Data structures
+CANCER_INCIDENCE = {
     "lung": {"male": {40: 10, 50: 30, 60: 95, 70: 195, 80: 235}, "female": {40: 15, 50: 38, 60: 80, 70: 145, 80: 175}},
     "breast": {"male": {40: 1, 50: 2, 60: 3, 70: 4, 80: 5}, "female": {40: 48, 50: 130, 60: 200, 70: 250, 80: 275}},
     "colorectal": {"male": {40: 13, 50: 32, 60: 75, 70: 145, 80: 205}, "female": {40: 10, 50: 24, 60: 55, 70: 105, 80: 155}},
@@ -58,7 +58,7 @@ CANCER_INCIDENCE = {  # Same as before
     "uterine": {"male": {40: 0, 50: 0, 60: 0, 70: 0, 80: 0}, "female": {40: 9, 50: 27, 60: 52, 70: 68, 80: 72}}
 }
 
-TEST_PERFORMANCE = {  # Same as before
+TEST_PERFORMANCE = {
     "Whole-body MRI": {
         "lung": {"sensitivity": 0.92, "specificity": 0.94},
         "breast": {"sensitivity": 0.95, "specificity": 0.75},
@@ -120,13 +120,42 @@ TEST_PERFORMANCE = {  # Same as before
         "pancreatic": {"sensitivity": 0.84, "specificity": 0.67},
         "ovarian": {"sensitivity": 0.83, "specificity": 0.87},
         "kidney": {"sensitivity": 0.85, "specificity": 0.89}
+    },
+    "Colonoscopy": {
+        "colorectal": {"sensitivity": 0.95, "specificity": 0.90}
+    },
+    "Upper Endoscopy": {
+        "esophageal": {"sensitivity": 0.85, "specificity": 0.90},
+        "gastric": {"sensitivity": 0.80, "specificity": 0.85}
+    },
+    "Dermoscopy": {
+        "melanoma": {"sensitivity": 0.94, "specificity": 0.85}
+    },
+    "Mammography": {
+        "breast": {"sensitivity": 0.85, "specificity": 0.90}
+    },
+    "HPV Test": {
+        "cervical": {"sensitivity": 0.95, "specificity": 0.94}
+    },
+    "PSA Test": {
+        "prostate": {"sensitivity": 0.90, "specificity": 0.30}
+    },
+    "Skin Exam": {
+        "melanoma": {"sensitivity": 0.77, "specificity": 0.89}
     }
 }
 
 DOWNSTREAM_RISKS = {
     "Whole-body MRI": {"false_positive_rate": 8.0, "biopsy_rate_fp": 0.5, "comp_rate_biopsy": 0.03, "psychological_impact": "Moderate", "radiation_exposure": "None"},
     "Galleri Blood Test": {"false_positive_rate": 0.5, "biopsy_rate_fp": 0.5, "comp_rate_biopsy": 0.03, "psychological_impact": "High", "radiation_exposure": "From follow-ups"},
-    "Low-dose CT Scan": {"false_positive_rate": 4.8, "biopsy_rate_fp": 0.5, "comp_rate_biopsy": 0.03, "psychological_impact": "Moderate", "radiation_exposure": "Low"}
+    "Low-dose CT Scan": {"false_positive_rate": 4.8, "biopsy_rate_fp": 0.5, "comp_rate_biopsy": 0.03, "psychological_impact": "Moderate", "radiation_exposure": "Low"},
+    "Colonoscopy": {"false_positive_rate": 5.0, "biopsy_rate_fp": 0.8, "comp_rate_biopsy": 0.01, "psychological_impact": "Low", "radiation_exposure": "None"},
+    "Upper Endoscopy": {"false_positive_rate": 10.0, "biopsy_rate_fp": 0.6, "comp_rate_biopsy": 0.02, "psychological_impact": "Moderate", "radiation_exposure": "None"},
+    "Dermoscopy": {"false_positive_rate": 15.0, "biopsy_rate_fp": 0.3, "comp_rate_biopsy": 0.005, "psychological_impact": "Low", "radiation_exposure": "None"},
+    "Mammography": {"false_positive_rate": 10.0, "biopsy_rate_fp": 0.4, "comp_rate_biopsy": 0.01, "psychological_impact": "Moderate", "radiation_exposure": "Low"},
+    "HPV Test": {"false_positive_rate": 6.0, "biopsy_rate_fp": 0.5, "comp_rate_biopsy": 0.01, "psychological_impact": "Low", "radiation_exposure": "None"},
+    "PSA Test": {"false_positive_rate": 70.0, "biopsy_rate_fp": 0.6, "comp_rate_biopsy": 0.02, "psychological_impact": "Moderate", "radiation_exposure": "None"},
+    "Skin Exam": {"false_positive_rate": 11.0, "biopsy_rate_fp": 0.2, "comp_rate_biopsy": 0.005, "psychological_impact": "Low", "radiation_exposure": "None"}
 }
 
 # Functions
@@ -216,48 +245,37 @@ def get_risk_multiplier(cancer_type, smoking_status, pack_years, family_history,
 
 def calculate_overall_prevalence(age, sex, risk_multipliers=None):
     total_prevalence = 0
-    for cancer_type in CANCER_INCIDENCE:
+    for cancer_type in CANCER_INCIDENCE.keys():
         if (cancer_type in ["prostate", "testicular"] and sex == "female") or (cancer_type in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male"):
             continue
         incidence_rate = interpolate_incidence(age, sex, cancer_type)
-        prevalence = (incidence_rate / 100000) * 5  # 5-year prevalence approx
+        prevalence = (incidence_rate / 100000) * 5
         if risk_multipliers and cancer_type in risk_multipliers:
             prevalence *= risk_multipliers[cancer_type]
         total_prevalence += prevalence
     return total_prevalence
 
 def combine_tests(tests, mode):
-    sens = 1.0
-    spec = 1.0
-    if mode == "Parallel":
-        sens_combined = 0
-        spec_combined = 1
-        for test in tests:
-            sens_test = np.mean([perf["sensitivity"] for perf in TEST_PERFORMANCE[test].values()])
-            spec_test = np.mean([perf["specificity"] for perf in TEST_PERFORMANCE[test].values()])
-            sens_combined = sens_combined + sens_test - sens_combined * sens_test
+    sens_combined = 0 if mode == "Parallel" else 1
+    spec_combined = 1 if mode == "Parallel" else 0
+    for test in tests:
+        sens_test = np.mean([v["sensitivity"] for v in TEST_PERFORMANCE[test].values()])
+        spec_test = np.mean([v["specificity"] for v in TEST_PERFORMANCE[test].values()])
+        if mode == "Parallel":
+            sens_combined = 1 - (1 - sens_combined) * (1 - sens_test)
             spec_combined *= spec_test
-        return sens_combined, spec_combined
-    elif mode == "Sequential":
-        sens_combined = 1
-        spec_combined = 0
-        for test in tests:
-            sens_test = np.mean([perf["sensitivity"] for perf in TEST_PERFORMANCE[test].values()])
-            spec_test = np.mean([perf["specificity"] for perf in TEST_PERFORMANCE[test].values()])
+        else:
             sens_combined *= sens_test
-            spec_combined = spec_combined + spec_test - spec_combined * spec_test
-        return sens_combined, spec_combined
+            spec_combined = 1 - (1 - spec_combined) * (1 - spec_test)
+    return sens_combined, spec_combined
 
-# Inputs
+# Sidebar inputs
 with st.sidebar:
     st.header("Your Details")
     age = st.slider("Age", 30, 90, 55)
     sex = st.selectbox("Sex", ["male", "female"])
     smoking_status = st.selectbox("Smoking Status", ["Never smoked", "Former smoker", "Current smoker"])
-    if smoking_status != "Never smoked":
-        pack_years = st.slider("Pack-years", 0, 80, 20)
-    else:
-        pack_years = 0
+    pack_years = st.slider("Pack-years", 0, 80, 20) if smoking_status != "Never smoked" else 0
     family_history = st.multiselect("Family Cancer History", ["Breast cancer", "Colorectal cancer", "Prostate cancer", "Ovarian cancer", "Lung cancer", "Pancreatic cancer"])
     genetic_mutations = st.multiselect("Genetic Mutations", ["BRCA1", "BRCA2", "Lynch syndrome", "TP53 (Li-Fraumeni)"])
     personal_history = st.checkbox("Personal Cancer History")
@@ -270,27 +288,22 @@ with st.sidebar:
 # Calculations
 cancer_types = set()
 for test in tests:
-    cancer_types.update(TEST_PERFORMANCE[test].keys())
+    cancer_types.update(TEST_PERFORMANCE[test])
 cancer_types = list(cancer_types)
 
-risk_multipliers = {}
-for cancer_type in cancer_types:
-    if (cancer_type in ["prostate", "testicular"] and sex == "female") or (cancer_type in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male"):
-        continue
-    risk_multipliers[cancer_type] = get_risk_multiplier(cancer_type, smoking_status, pack_years, family_history, genetic_mutations, personal_history)
+risk_multipliers = {ct: get_risk_multiplier(ct, smoking_status, pack_years, family_history, genetic_mutations, personal_history) for ct in cancer_types if not ((ct in ["prostate", "testicular"] and sex == "female") or (ct in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male"))}
 
 overall_prevalence = calculate_overall_prevalence(age, sex, risk_multipliers)
 
 if len(tests) > 1:
     sens, spec = combine_tests(tests, mode)
-    # Average downstream risks for combined
-    fp_rate = np.mean([DOWNSTREAM_RISKS[test]["false_positive_rate"] for test in tests]) / 100
-    biopsy_rate = np.mean([DOWNSTREAM_RISKS[test]["biopsy_rate_fp"] for test in tests])
-    comp_rate = np.mean([DOWNSTREAM_RISKS[test]["comp_rate_biopsy"] for test in tests])
+    fp_rate = np.mean([DOWNSTREAM_RISKS[t]["false_positive_rate"] / 100 for t in tests])
+    biopsy_rate = np.mean([DOWNSTREAM_RISKS[t]["biopsy_rate_fp"] for t in tests])
+    comp_rate = np.mean([DOWNSTREAM_RISKS[t]["comp_rate_biopsy"] for t in tests])
 else:
     test = tests[0]
-    sens = np.mean([perf["sensitivity"] for perf in TEST_PERFORMANCE[test].values()])
-    spec = np.mean([perf["specificity"] for perf in TEST_PERFORMANCE[test].values()])
+    sens = np.mean([v["sensitivity"] for v in TEST_PERFORMANCE[test].values()])
+    spec = np.mean([v["specificity"] for v in TEST_PERFORMANCE[test].values()])
     fp_rate = DOWNSTREAM_RISKS[test]["false_positive_rate"] / 100
     biopsy_rate = DOWNSTREAM_RISKS[test]["biopsy_rate_fp"]
     comp_rate = DOWNSTREAM_RISKS[test]["comp_rate_biopsy"]
@@ -308,52 +321,53 @@ tn = spec * no_cancer
 positive = tp + fp
 negative = fn + tn
 
-# Downstream for positives (assume all positives get follow-up)
-biopsy = positive * biopsy_rate  # But actually for FP mostly, but simplify to all positives
+biopsy = positive * biopsy_rate
 no_biopsy = positive - biopsy
 complication = biopsy * comp_rate
 no_complication = biopsy - complication
 
-treatment = tp  # Assume TP leads to treatment
-false_alarm = fp  # FP leads to anxiety/false alarm
+treatment = tp
+false_alarm = fp
+missed = fn
+reassured = tn
 
-missed = fn  # FN missed
-reassured = tn  # TN reassured
-
-# Improved Sankey Diagram
+# Sankey Diagram
 fig = go.Figure(data=[go.Sankey(
+    orientation = 'h',
     node = dict(
-        pad = 15,
-        thickness = 20,
-        line = dict(color = "black", width = 0.5),
+        pad = 20,
+        thickness = 30,
+        line = dict(color = "gray", width = 0.5),
         label = [
-            "100 People",  # 0
-            "Has Cancer", "No Cancer",  # 1,2
-            "Test Positive", "Test Negative",  # 3,4
-            "True Positive", "False Positive", "False Negative", "True Negative",  # 5,6,7,8
-            "Biopsy", "No Biopsy",  # 9,10 from positive
-            "Complication", "No Complication",  # 11,12 from biopsy
-            "Treatment", "False Alarm",  # 13,14 from TP/FP
-            "Missed Cancer", "Reassured"  # 15,16 from FN/TN
+            "100 People", 
+            "Has Cancer", "No Cancer", 
+            "Test Positive", "Test Negative", 
+            "True Positive", "False Positive", "False Negative", "True Negative", 
+            "Biopsy", "No Biopsy", 
+            "Complication", "No Complication", 
+            "Treatment", "False Alarm", 
+            "Missed Cancer", "Reassured" 
         ],
         color = [
-            "#3498db", "#e74c3c", "#2ecc71", "#f39c12", "#95a5a6",
-            "#27ae60", "#e67e22", "#c0392b", "#16a085",
-            "#8e44ad", "#34495e", "#9b59b6", "#bdc3c7",
-            "#1abc9c", "#7f8c8d", "#e74c3c", "#2ecc71"
-        ]
+            "#AED6F1", "#E74C3C", "#27AE60", "#F39C12", "#BDC3C7",
+            "#2ECC71", "#E67E22", "#C0392B", "#3498DB",
+            "#8E44AD", "#95A5A6", "#9B59B6", "#BDC3C7",
+            "#1ABC9C", "#7F8C8D", "#E74C3C", "#2ECC71"
+        ],
+        x = [0, 0.15, 0.15, 0.3, 0.3, 0.45, 0.45, 0.45, 0.45, 0.6, 0.6, 0.75, 0.75, 0.75, 0.75, 0.75, 0.75],
+        y = [0.5, 0.2, 0.8, 0.1, 0.9, 0.05, 0.15, 0.85, 0.95, 0.1, 0.3, 0.05, 0.15, 0.25, 0.35, 0.8, 0.9],
     ),
     link = dict(
         source = [
-            0, 0,  # To disease
-            1, 1,  # From has cancer to positive/negative
-            2, 2,  # From no cancer to positive/negative
-            3, 3,  # From positive to TP/FP
-            4, 4,  # From negative to FN/TN
-            5, 6,  # From TP to Treatment, FP to False Alarm
-            3, 3,  # From positive to Biopsy/No Biopsy (alternative path)
-            9, 9,  # From Biopsy to Complication/No Complication
-            7, 8   # From FN to Missed, TN to Reassured
+            0, 0, 
+            1, 1, 
+            2, 2, 
+            3, 3, 
+            4, 4, 
+            5, 6, 
+            3, 3, 
+            9, 9, 
+            7, 8
         ],
         target = [
             1, 2,
@@ -377,19 +391,18 @@ fig = go.Figure(data=[go.Sankey(
             complication, no_complication,
             fn, tn
         ],
-        color = [
-            "#e74c3c", "#2ecc71",
-            "#f39c12", "#95a5a6", "#f39c12", "#95a5a6",
-            "#27ae60", "#e67e22", "#c0392b", "#16a085",
-            "#1abc9c", "#7f8c8d",
-            "#8e44ad", "#34495e",
-            "#9b59b6", "#bdc3c7",
-            "#e74c3c", "#2ecc71"
-        ]
-    )
+        color = 'rgba(189, 195, 199, 0.5)',
+        hovercolor = 'blue'
+    ),
+    textfont = dict(size=14)
 )])
 
-fig.update_layout(title_text="Screening Test Outcomes for 100 People", font_size=12, height=800, width=1200)
+fig.update_layout(
+    title_text="Screening Test Outcomes for 100 People",
+    font_size=14,
+    height=600,
+    width=1200
+)
 st.plotly_chart(fig, use_container_width=True)
 
 # Metrics
