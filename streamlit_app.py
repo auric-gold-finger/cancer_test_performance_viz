@@ -354,6 +354,12 @@ def calculate_overall_cancer_prevalence(age, sex, risk_multipliers=None):
         total_prevalence += prevalence
     return total_prevalence
 
+def to_fraction(risk_percent):
+    if risk_percent <= 0:
+        return "0 in 10,000"
+    n = round(100 / risk_percent)
+    return f"1 in {n}"
+
 # Sidebar
 with st.sidebar:
     st.header("Your Details")
@@ -385,7 +391,7 @@ baseline_overall_prevalence = calculate_overall_cancer_prevalence(age, sex)
 personalized_overall_prevalence = calculate_overall_cancer_prevalence(age, sex, risk_multipliers)
 
 results = []
-overall_tp = overall_fp = overall_fn = overall_tn = overall_pre_test_risk = overall_post_test_risk = 0
+overall_tp = overall_fp = overall_fn = overall_tn = overall_pre_test_risk = overall_post_test_risk = overall_post_positive_risk = 0
 
 for cancer_type in cancer_types:
     if (cancer_type in ["prostate", "testicular"] and sex == "female") or (cancer_type in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male"):
@@ -399,19 +405,21 @@ for cancer_type in cancer_types:
         baseline_prevalence = get_prevalence_from_incidence(incidence_rate)
         prevalence = baseline_prevalence * risk_multipliers[cancer_type]
     ppv, npv = calculate_ppv_npv(sensitivity, specificity, prevalence)
-    post_test_risk = calculate_post_test_risk_negative(sensitivity, specificity, prevalence)
+    post_test_risk_neg = calculate_post_test_risk_negative(sensitivity, specificity, prevalence)
+    post_test_risk_pos = ppv
     false_positive_risk = (1 - specificity) * (1 - prevalence)
     baseline_incidence = interpolate_incidence(age, sex, cancer_type)
     baseline_risk = get_prevalence_from_incidence(baseline_incidence)
-    abs_risk_reduction = prevalence - post_test_risk
+    abs_risk_reduction = prevalence - post_test_risk_neg
     results.append({
         "Cancer Type": cancer_type.replace("_", " ").title(),
         "Baseline Risk": round(baseline_risk * 100, 3),
         "Your Risk": round(prevalence * 100, 3),
         "Risk Multiplier": round(risk_multipliers[cancer_type], 1),
-        "Post-test Risk (if negative)": round(post_test_risk * 100, 4),
+        "Post-test Risk (if negative)": round(post_test_risk_neg * 100, 4),
+        "Post-test Risk (if positive)": round(post_test_risk_pos * 100, 4),
         "Abs Risk Reduction": round(abs_risk_reduction * 100, 4),
-        "Rel Risk Reduction": round(((prevalence - post_test_risk) / prevalence) * 100, 1) if prevalence > 0 else 0,
+        "Rel Risk Reduction": round(((prevalence - post_test_risk_neg) / prevalence) * 100, 1) if prevalence > 0 else 0,
         "False Positive Risk": round(false_positive_risk * 100, 2),
         "Detection Rate": round(sensitivity * 100, 1),
         "Accuracy Rate": round(specificity * 100, 1),
@@ -427,7 +435,8 @@ for cancer_type in cancer_types:
     overall_fn += fn
     overall_tn += tn
     overall_pre_test_risk += prevalence
-    overall_post_test_risk += post_test_risk
+    overall_post_test_risk += post_test_risk_neg
+    overall_post_positive_risk += post_test_risk_pos * (tp + fp)  # Weighted, but since it's overall, approximate
 
 df = pd.DataFrame(results)
 df = df.sort_values("Your Risk", ascending=False).reset_index(drop=True)  # Sort for better viz
@@ -442,9 +451,9 @@ overall_rel_reduction = ((overall_pre_test_risk - overall_post_test_risk) / over
 st.header("Quick Summary")
 col1, col2, col3 = st.columns(3)
 with col1:
-    st.metric("Your Risk Now", f"{personalized_overall_prevalence*100:.2f}%")
+    st.metric("Your Risk Now", f"{personalized_overall_prevalence*100:.2f}% ({to_fraction(personalized_overall_prevalence*100)})")
 with col2:
-    st.metric("Risk After Negative Test", f"{overall_post_test_risk*100:.2f}%")
+    st.metric("Risk After Negative Test", f"{overall_post_test_risk*100:.2f}% ({to_fraction(overall_post_test_risk*100)})")
 with col3:
     st.metric("Risk Drop", f"{overall_abs_reduction:.2f}%", f"{overall_rel_reduction:.1f}% relative")
 
@@ -454,7 +463,7 @@ expected_comps = expected_biopsies * risk_data['comp_rate_biopsy']
 
 col4, col5 = st.columns(2)
 with col4:
-    st.metric("False Positive Chance", f"{risk_data['false_positive_rate']}%")
+    st.metric("False Positive Chance", f"{risk_data['false_positive_rate']}% ({to_fraction(risk_data['false_positive_rate'])})")
 with col5:
     st.metric("Biopsy/Complication Chance", f"{expected_biopsies:.2f}% / {expected_comps:.4f}%")
 
@@ -487,7 +496,9 @@ with st.expander("Risk Change Details"):
         marker_color='#3b82f6',
         textposition='outside',
         texttemplate='%{y:.2f}%',
-        opacity=0.8
+        opacity=0.8,
+        customdata=[to_fraction(y) for y in df["Your Risk"]],
+        hovertemplate='%{x}<br>Risk: %{y:.2f}% (%{customdata})'
     ))
     fig_comparison.add_trace(go.Bar(
         name='After Negative',
@@ -496,9 +507,22 @@ with st.expander("Risk Change Details"):
         marker_color='#ef4444',
         textposition='outside',
         texttemplate='%{y:.2f}%',
-        opacity=0.8
+        opacity=0.8,
+        customdata=[to_fraction(y) for y in df["Post-test Risk (if negative)"]],
+        hovertemplate='%{x}<br>Risk: %{y:.2f}% (%{customdata})'
     ))
-    max_risk = df["Your Risk"].max()
+    fig_comparison.add_trace(go.Bar(
+        name='After Positive',
+        x=df["Cancer Type"],
+        y=df["Post-test Risk (if positive)"],
+        marker_color='#f59e0b',
+        textposition='outside',
+        texttemplate='%{y:.2f}%',
+        opacity=0.8,
+        customdata=[to_fraction(y) for y in df["Post-test Risk (if positive)"]],
+        hovertemplate='%{x}<br>Risk: %{y:.2f}% (%{customdata})'
+    ))
+    max_risk = max(df["Your Risk"].max(), df["Post-test Risk (if positive)"].max())
     y_max = max(1, max_risk * 1.3)  # Minimum 1% scale for visibility if low risks
     fig_comparison.update_layout(
         barmode='group',
@@ -525,16 +549,16 @@ with st.expander("Test Outcome Breakdown"):
     st.plotly_chart(fig_pie, use_container_width=True)
 
 with st.expander("Detailed Table"):
-    simplified_df = df[["Cancer Type", "Your Risk", "Post-test Risk (if negative)", "Abs Risk Reduction", "Rel Risk Reduction", "False Positive Risk"]]
-    st.dataframe(
-        simplified_df.style.format({
-            "Your Risk": "{:.3f}%",
-            "Post-test Risk (if negative)": "{:.4f}%",
-            "Abs Risk Reduction": "{:.4f}%",
-            "Rel Risk Reduction": "{:.1f}%",
-            "False Positive Risk": "{:.2f}%"
-        })
-    )
+    simplified_df = df[["Cancer Type", "Your Risk", "Post-test Risk (if negative)", "Post-test Risk (if positive)", "Abs Risk Reduction", "Rel Risk Reduction", "False Positive Risk"]]
+    formatter = {
+        "Your Risk": lambda x: f"{x:.3f}% ({to_fraction(x)})",
+        "Post-test Risk (if negative)": lambda x: f"{x:.4f}% ({to_fraction(x)})",
+        "Post-test Risk (if positive)": lambda x: f"{x:.4f}% ({to_fraction(x)})",
+        "Abs Risk Reduction": lambda x: f"{x:.4f}% ({to_fraction(x)})",
+        "Rel Risk Reduction": "{:.1f}%",
+        "False Positive Risk": lambda x: f"{x:.2f}% ({to_fraction(x)})"
+    }
+    st.dataframe(simplified_df.style.format(formatter))
 
 with st.expander("Follow-Up Risks"):
     fig_risks = go.Figure(go.Bar(
