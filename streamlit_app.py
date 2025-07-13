@@ -172,7 +172,7 @@ def interpolate_incidence(age, sex, cancer_type):
     else:
         return np.interp(age, age_points, incidence_points)
 
-def get_risk_multiplier(cancer_type, smoking_status, pack_years, family_history, genetic_mutations, personal_history):
+def get_risk_multiplier(cancer_type, smoking_status, pack_years, family_history, family_ages, genetic_mutations, personal_history):
     multiplier = 1.0
     if smoking_status == "Current smoker":
         if cancer_type == "lung":
@@ -206,11 +206,20 @@ def get_risk_multiplier(cancer_type, smoking_status, pack_years, family_history,
         "lung": "Lung cancer",
         "pancreatic": "Pancreatic cancer"
     }
-    if cancer_family_map.get(cancer_type) in family_history:
-        if cancer_type == "breast":
-            multiplier *= 2.3
-        elif cancer_type == "colorectal":
-            multiplier *= 2.2
+    family_cancer = cancer_family_map.get(cancer_type)
+    if family_cancer in family_history:
+        age_diag = family_ages.get(family_cancer, 60)  # Default to 60 if not specified
+        if cancer_type == "colorectal":
+            if age_diag < 60:
+                multiplier *= 3.5
+            else:
+                multiplier *= 2.2
+        elif cancer_type == "breast":
+            if age_diag < 50:
+                multiplier *= 3.0
+            else:
+                multiplier *= 2.3
+        # Similar logic for other cancers, approximating
         elif cancer_type == "prostate":
             multiplier *= 2.5
         elif cancer_type == "ovarian":
@@ -249,11 +258,23 @@ def calculate_overall_prevalence(age, sex, risk_multipliers=None):
         if (cancer_type in ["prostate", "testicular"] and sex == "female") or (cancer_type in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male"):
             continue
         incidence_rate = interpolate_incidence(age, sex, cancer_type)
-        prevalence = (incidence_rate / 100000) * 10  # Updated to 10-year risk for better alignment with screening detection rates
+        prevalence = (incidence_rate / 100000) * 10  # 10-year risk for screening context
         if risk_multipliers and cancer_type in risk_multipliers:
             prevalence *= risk_multipliers[cancer_type]
         total_prevalence += prevalence
     return total_prevalence
+
+def calculate_per_cancer_prevalence(age, sex, risk_multipliers=None):
+    results = []
+    for cancer_type in CANCER_INCIDENCE.keys():
+        if (cancer_type in ["prostate", "testicular"] and sex == "female") or (cancer_type in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male"):
+            continue
+        incidence_rate = interpolate_incidence(age, sex, cancer_type)
+        prevalence = (incidence_rate / 100000) * 10  # 10-year risk
+        if risk_multipliers and cancer_type in risk_multipliers:
+            prevalence *= risk_multipliers[cancer_type]
+        results.append({"Cancer Type": cancer_type.replace("_", " ").title(), "Personalized Risk (%)": prevalence * 100})
+    return pd.DataFrame(results)
 
 def combine_tests(tests, mode):
     sens_combined = 0 if mode == "Parallel" else 1
@@ -277,13 +298,18 @@ with st.sidebar:
     smoking_status = st.selectbox("Smoking Status", ["Never smoked", "Former smoker", "Current smoker"])
     pack_years = st.slider("Pack-years", 0, 80, 20) if smoking_status != "Never smoked" else 0
     family_history = st.multiselect("Family Cancer History", ["Breast cancer", "Colorectal cancer", "Prostate cancer", "Ovarian cancer", "Lung cancer", "Pancreatic cancer"])
+    family_ages = {}
+    for fh in family_history:
+        family_ages[fh] = st.number_input(f"Age of Diagnosis for {fh}", min_value=20, max_value=100, value=60)
     genetic_mutations = st.multiselect("Genetic Mutations", ["BRCA1", "BRCA2", "Lynch syndrome", "TP53 (Li-Fraumeni)"])
     personal_history = st.checkbox("Personal Cancer History")
     tests = st.multiselect("Screening Tests", list(TEST_PERFORMANCE.keys()))
+    per_thousand = st.checkbox("Show per 1000 people", value=False)
+    population = 1000 if per_thousand else 100
 
 # Calculations
 cancer_types = set(CANCER_INCIDENCE.keys())
-risk_multipliers = {ct: get_risk_multiplier(ct, smoking_status, pack_years, family_history, genetic_mutations, personal_history) for ct in cancer_types if not ((ct in ["prostate", "testicular"] and sex == "female") or (ct in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male"))}
+risk_multipliers = {ct: get_risk_multiplier(ct, smoking_status, pack_years, family_history, family_ages, genetic_mutations, personal_history) for ct in cancer_types if not ((ct in ["prostate", "testicular"] and sex == "female") or (ct in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male"))}
 
 overall_prevalence = calculate_overall_prevalence(age, sex, risk_multipliers)
 
@@ -302,8 +328,7 @@ if tests:
         biopsy_rate = DOWNSTREAM_RISKS[test]["biopsy_rate_fp"]
         comp_rate = DOWNSTREAM_RISKS[test]["comp_rate_biopsy"]
 
-    # Outcomes per 100 people with test
-    population = 100
+    # Outcomes scaled to population
     has_cancer = overall_prevalence * population
     no_cancer = population - has_cancer
 
@@ -333,7 +358,7 @@ if tests:
             thickness = 30,
             line = dict(color = "gray", width = 0.5),
             label = [
-                "100 People", 
+                f"{population} People", 
                 f"Test Positive ({positive:.1f})", f"Test Negative ({negative:.1f})", 
                 f"Follow-up Biopsy ({biopsy:.1f})", f"No Biopsy Needed ({no_biopsy:.1f})", f"Reassured ({reassured:.1f})", f"Further Monitoring ({further_monitor:.1f})", 
                 f"Cancer Found & Treated ({cancer_treated:.1f})", f"Benign (False Alarm) ({benign:.1f})", f"Complication from Biopsy ({complication:.1f})"
@@ -344,7 +369,7 @@ if tests:
                 "#1ABC9C", "#E67E22", "#E74C3C"
             ],
             x = [0, 0.2, 0.2, 0.4, 0.4, 0.6, 0.6, 0.8, 0.8, 0.8],
-            y = [0.5, 0.0, 1.0, -0.05, 0.15, 0.85, 1.05, -0.15, 0.05, 0.25],  # Spread even more vertically to prevent overlap
+            y = [0.5, 0.05, 0.95, 0.0, 0.25, 0.8, 0.95, -0.05, 0.15, 0.35],  # Adjusted y to spread vertically and reduce overlap
         ),
         link = dict(
             source = [
@@ -376,7 +401,7 @@ if tests:
     )])
 
     fig.update_layout(
-        title_text="Patient Pathways in Screening for 100 People",
+        title_text=f"Patient Pathways in Screening for {population} People",
         font_size=14,
         height=800,
         width=1200
@@ -407,7 +432,7 @@ else:
             thickness = 30,
             line = dict(color = "gray", width = 0.5),
             label = [
-                "100 People", 
+                f"{population} People", 
                 f"Has Cancer (Undetected) ({has_cancer:.1f})", f"No Cancer ({no_cancer:.1f})"
             ],
             color = [
@@ -428,7 +453,7 @@ else:
     )])
 
     fig.update_layout(
-        title_text="Baseline Cancer Risk for 100 People (No Screening)",
+        title_text=f"Baseline Cancer Risk for {population} People (No Screening)",
         font_size=14,
         height=400,
         width=1200
@@ -441,3 +466,8 @@ else:
     st.write(f"Has Cancer (Undetected): {has_cancer:.1f}")
     st.write(f"No Cancer: {no_cancer:.1f}")
     st.markdown("</div>", unsafe_allow_html=True)
+
+# Per-cancer stats
+st.header("Personalized Risk per Cancer Type (10-Year Risk)")
+per_cancer_df = calculate_per_cancer_prevalence(age, sex, risk_multipliers)
+st.dataframe(per_cancer_df.sort_values("Personalized Risk (%)", ascending=False))
