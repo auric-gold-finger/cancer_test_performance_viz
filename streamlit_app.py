@@ -315,8 +315,8 @@ no_cancer = population - has_cancer
 
 tp = sens * has_cancer
 fn = (1 - sens) * has_cancer
-fp = fp_rate * no_cancer  # Use fp_rate for false positives
-tn = no_cancer - fp
+fp = (1 - spec) * no_cancer
+tn = spec * no_cancer
 
 positive = tp + fp
 negative = fn + tn
@@ -331,7 +331,7 @@ benign = tp * 0.2 + fp  # Rest benign + all FP
 further_monitor = fn  # FN to monitoring
 reassured = tn
 
-# Sankey Diagram
+# Sankey Diagram - Spread vertically with adjusted y positions
 fig = go.Figure(data=[go.Sankey(
     orientation = 'h',
     node = dict(
@@ -350,7 +350,7 @@ fig = go.Figure(data=[go.Sankey(
             "#1ABC9C", "#E67E22", "#E74C3C"
         ],
         x = [0, 0.2, 0.2, 0.4, 0.4, 0.6, 0.6, 0.8, 0.8, 0.8],
-        y = [0.5, 0.3, 0.7, 0.2, 0.4, 0.6, 0.8, 0.1, 0.3, 0.5],
+        y = [0.5, 0.1, 0.9, 0.05, 0.25, 0.75, 0.95, 0.0, 0.15, 0.3],  # Adjusted y to spread vertically and reduce overlap
     ),
     link = dict(
         source = [
@@ -384,7 +384,7 @@ fig = go.Figure(data=[go.Sankey(
 fig.update_layout(
     title_text="Patient Pathways in Screening for 100 People",
     font_size=14,
-    height=600,
+    height=800,  # Increased height to allow vertical spread
     width=1200
 )
 st.plotly_chart(fig, use_container_width=True)
