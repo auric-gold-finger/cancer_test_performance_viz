@@ -429,6 +429,7 @@ for cancer_type in cancer_types:
     overall_post_test_risk += post_test_risk
 
 df = pd.DataFrame(results)
+df = df.sort_values("Your Risk", ascending=False).reset_index(drop=True)  # Sort for better viz
 
 overall_total = overall_tp + overall_fp + overall_fn + overall_tn
 pie_values = [overall_tp / overall_total * 100, overall_fp / overall_total * 100, overall_fn / overall_total * 100, overall_tn / overall_total * 100] if overall_total > 0 else [0, 0, 0, 100]
@@ -483,9 +484,8 @@ with st.expander("Risk Change Details"):
         x=df["Cancer Type"],
         y=df["Your Risk"],
         marker_color='#3498db',
-        text=df["Your Risk"],
         textposition='outside',
-        texttemplate='%{text:.2f}%',
+        texttemplate='%{y:.2f}%',
         opacity=0.8
     ))
     fig_comparison.add_trace(go.Bar(
@@ -493,17 +493,17 @@ with st.expander("Risk Change Details"):
         x=df["Cancer Type"],
         y=df["Post-test Risk (if negative)"],
         marker_color='#e74c3c',
-        text=df["Post-test Risk (if negative)"],
         textposition='outside',
-        texttemplate='%{text:.2f}%',
+        texttemplate='%{y:.2f}%',
         opacity=0.8
     ))
     max_risk = df["Your Risk"].max()
+    y_max = max(1, max_risk * 1.3)  # Minimum 1% scale for visibility if low risks
     fig_comparison.update_layout(
         barmode='group',
-        height=600,  # Taller for better visibility
+        height=600,
         yaxis_title='Risk (%)',
-        yaxis=dict(range=[0, max_risk * 1.2 if max_risk < 1 else max_risk * 1.1]),  # Dynamic padding
+        yaxis=dict(range=[0, y_max]),
         legend=dict(orientation='h', yanchor="bottom", y=1.02, xanchor="right", x=1),
         plot_bgcolor='white',
         bargap=0.15
@@ -537,8 +537,8 @@ with st.expander("Follow-Up Risks"):
         x=['False Positive', 'Biopsy', 'Complication'],
         y=[risk_data['false_positive_rate'], expected_biopsies, expected_comps],
         marker_color='#e74c3c',
-        text=[f"{v:.2f}%" for v in [risk_data['false_positive_rate'], expected_biopsies, expected_comps]],
-        textposition='outside'
+        textposition='outside',
+        texttemplate='%{y:.2f}%'
     ))
     fig_risks.update_layout(height=300, yaxis_title='Chance (%)', plot_bgcolor='white')
     st.plotly_chart(fig_risks, use_container_width=True)
