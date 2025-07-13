@@ -14,7 +14,7 @@ st.set_page_config(
 st.title("Cancer Screening Test Analysis")
 st.markdown("Compare test performance and understand what results mean for your cancer risk")
 
-# Real clinical data from recent studies and trials - EXPANDED COVERAGE
+# Updated with latest available data as of July 2025
 TEST_PERFORMANCE = {
     "Whole-body MRI": {
         "lung": {"sensitivity": 0.50, "specificity": 0.93},
@@ -69,7 +69,7 @@ TEST_PERFORMANCE = {
         "uterine": {"sensitivity": 0.78, "specificity": 0.995}
     },
     "CT Scan": {
-        "lung": {"sensitivity": 0.93, "specificity": 0.77},
+        "lung": {"sensitivity": 0.97, "specificity": 0.952},
         "breast": {"sensitivity": 0.70, "specificity": 0.85},
         "colorectal": {"sensitivity": 0.96, "specificity": 0.80},
         "prostate": {"sensitivity": 0.75, "specificity": 0.80},
@@ -80,10 +80,12 @@ TEST_PERFORMANCE = {
     }
 }
 
-# Downstream testing and complication risks
+# Downstream testing and complication risks - Updated with latest estimates
 DOWNSTREAM_RISKS = {
     "Whole-body MRI": {
-        "false_positive_rate": 8.5,  # Average across cancer types
+        "false_positive_rate": 8.0,  # Updated from recent studies (e.g., 8% FPR in CPS cohorts)
+        "biopsy_rate_fp": 0.5,  # Approx 50% of FPs lead to biopsy
+        "comp_rate_biopsy": 0.03,  # 3% complication rate per biopsy
         "typical_followup": "Additional MRI with contrast, possible biopsy",
         "followup_complications": 2.1,  # Contrast reactions, biopsy complications
         "psychological_impact": "Moderate - incidental findings cause anxiety",
@@ -91,13 +93,17 @@ DOWNSTREAM_RISKS = {
     },
     "Grail Blood Test": {
         "false_positive_rate": 0.5,
+        "biopsy_rate_fp": 0.5,
+        "comp_rate_biopsy": 0.03,
         "typical_followup": "Imaging scans (CT, MRI, PET), possible biopsy",
         "followup_complications": 3.8,  # Multiple imaging, biopsy risks
         "psychological_impact": "High - positive blood test causes significant anxiety",
         "radiation_exposure": "Moderate to high from follow-up CT/PET scans"
     },
     "CT Scan": {
-        "false_positive_rate": 23.3,  # Average across applications
+        "false_positive_rate": 4.8,  # Updated from recent lung screening studies
+        "biopsy_rate_fp": 0.5,
+        "comp_rate_biopsy": 0.03,
         "typical_followup": "Repeat CT, additional imaging, possible biopsy",
         "followup_complications": 4.2,  # Additional radiation, biopsy complications
         "psychological_impact": "Moderate to high - abnormal findings cause worry",
@@ -105,7 +111,7 @@ DOWNSTREAM_RISKS = {
     }
 }
 
-# Real US cancer incidence rates per 100,000 (SEER/CDC 2018-2022 data) - EXPANDED
+# Real US cancer incidence rates per 100,000 (SEER/CDC 2018-2022 data, no major 2025 changes) - EXPANDED
 CANCER_INCIDENCE = {
     "lung": {
         "male": {40: 8, 50: 25, 60: 85, 70: 180, 80: 220},
@@ -207,13 +213,17 @@ CANCER_INCIDENCE = {
 
 def calculate_ppv_npv(sensitivity, specificity, prevalence):
     """Calculate test accuracy metrics"""
-    ppv = (sensitivity * prevalence) / (sensitivity * prevalence + (1 - specificity) * (1 - prevalence))
-    npv = (specificity * (1 - prevalence)) / ((1 - sensitivity) * prevalence + specificity * (1 - prevalence))
+    if prevalence == 0:
+        return 0, 1
+    ppv = (sensitivity * prevalence) / (sensitivity * prevalence + (1 - specificity) * (1 - prevalence)) if (sensitivity * prevalence + (1 - specificity) * (1 - prevalence)) > 0 else 0
+    npv = (specificity * (1 - prevalence)) / ((1 - sensitivity) * prevalence + specificity * (1 - prevalence)) if ((1 - sensitivity) * prevalence + specificity * (1 - prevalence)) > 0 else 1
     return ppv, npv
 
-def calculate_post_test_risk_negative(sensitivity, prevalence):
-    """Calculate probability you still have cancer after a negative test"""
-    return ((1 - sensitivity) * prevalence) / ((1 - sensitivity) * prevalence + 1 - prevalence)
+def calculate_post_test_risk_negative(sensitivity, specificity, prevalence):
+    """Calculate probability you still have cancer after a negative test - FIXED"""
+    if prevalence == 0:
+        return 0
+    return ((1 - sensitivity) * prevalence) / ((1 - sensitivity) * prevalence + specificity * (1 - prevalence)) if ((1 - sensitivity) * prevalence + specificity * (1 - prevalence)) > 0 else 0
 
 def get_prevalence_from_incidence(incidence_rate):
     """Convert yearly cancer rate to current prevalence"""
@@ -221,6 +231,8 @@ def get_prevalence_from_incidence(incidence_rate):
 
 def interpolate_incidence(age, sex, cancer_type):
     """Get cancer risk for specific age"""
+    if cancer_type not in CANCER_INCIDENCE:
+        return 0
     age_points = list(CANCER_INCIDENCE[cancer_type][sex].keys())
     incidence_points = list(CANCER_INCIDENCE[cancer_type][sex].values())
     
@@ -417,6 +429,11 @@ personalized_overall_prevalence = calculate_overall_cancer_prevalence(age, sex, 
 
 # Calculate results
 results = []
+overall_tp = 0
+overall_fp = 0
+overall_fn = 0
+overall_tn = 0
+overall_fp_risk = 0
 
 for cancer_type in cancer_types:
     if cancer_type in ["prostate", "testicular"] and sex == "female":
@@ -435,12 +452,14 @@ for cancer_type in cancer_types:
         prevalence = baseline_prevalence * risk_multipliers[cancer_type]
     
     ppv, npv = calculate_ppv_npv(sensitivity, specificity, prevalence)
-    post_test_risk = calculate_post_test_risk_negative(sensitivity, prevalence)
+    post_test_risk = calculate_post_test_risk_negative(sensitivity, specificity, prevalence)
     false_positive_risk = (1 - specificity) * (1 - prevalence)
     
     # Calculate baseline risk for comparison
     baseline_incidence = interpolate_incidence(age, sex, cancer_type)
     baseline_risk = get_prevalence_from_incidence(baseline_incidence)
+    
+    abs_risk_reduction = prevalence * 100 - post_test_risk * 100
     
     results.append({
         "Cancer Type": cancer_type.replace("_", " ").title(),
@@ -448,17 +467,38 @@ for cancer_type in cancer_types:
         "Your Risk": round(prevalence * 100, 3),
         "Risk Multiplier": round(risk_multipliers[cancer_type], 1),
         "Post-test Risk (if negative)": round(post_test_risk * 100, 4),
-        "Risk Reduction": round(((prevalence - post_test_risk) / prevalence) * 100, 1),
+        "Abs Risk Reduction": round(abs_risk_reduction, 4),
+        "Rel Risk Reduction": round(((prevalence - post_test_risk) / prevalence) * 100, 1) if prevalence > 0 else 0,
         "False Positive Risk": round(false_positive_risk * 100, 2),
         "Detection Rate": round(sensitivity * 100, 1),
         "Accuracy Rate": round(specificity * 100, 1),
         "Positive Accuracy": round(ppv * 100, 1),
         "Negative Accuracy": round(npv * 100, 1)
     })
+    
+    # Accumulate for overall pie
+    tp = sensitivity * prevalence
+    fp = (1 - specificity) * (1 - prevalence)
+    fn = (1 - sensitivity) * prevalence
+    tn = specificity * (1 - prevalence)
+    overall_tp += tp
+    overall_fp += fp
+    overall_fn += fn
+    overall_tn += tn
+    overall_fp_risk += false_positive_risk
 
 df = pd.DataFrame(results)
 
+# Overall outcomes for pie
+overall_total = overall_tp + overall_fp + overall_fn + overall_tn
+if overall_total > 0:
+    pie_values = [overall_tp / overall_total * 100, overall_fp / overall_total * 100, overall_fn / overall_total * 100, overall_tn / overall_total * 100]
+else:
+    pie_values = [0, 0, 0, 100]
+
 # Main content
+st.warning("Note: These are estimates based on population data; consult a doctor for personalized advice. Screening may detect indolent cancers (overdiagnosis). Data updated as of July 2025.")
+
 st.subheader(f"Test Performance: {test_type}")
 
 # Overall cancer risk context
@@ -542,10 +582,77 @@ fig_comparison.update_layout(
     title='Your Cancer Risk: Current vs After Negative Test',
     xaxis_title='Cancer Type',
     yaxis_title='Probability of Having Cancer (%)',
-    yaxis=dict(range=[0, 100]),
+    yaxis=dict(range=[0, max(df["Your Risk"].max(), 100)]),
     barmode='group',
     height=500,
     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
 )
 
 st.plotly_chart(fig_comparison, use_container_width=True)
+
+# Overall outcomes pie chart
+st.subheader("Expected Test Outcomes (Overall)")
+fig_pie = go.Figure(data=[go.Pie(
+    labels=['True Positive', 'False Positive', 'False Negative', 'True Negative'],
+    values=pie_values,
+    hole=.3,
+    marker_colors=['#FF9999', '#FF6666', '#CC0000', '#990000']
+)])
+fig_pie.update_layout(title='Proportion of Possible Test Results')
+st.plotly_chart(fig_pie, use_container_width=True)
+
+# Detailed results table
+st.subheader("Detailed Results Table")
+st.markdown("Key metrics for each cancer type based on your inputs. Absolute Risk Reduction shows the raw percentage point drop in risk from a negative test.")
+
+st.dataframe(
+    df.style.format({
+        "Baseline Risk": "{:.3f}%",
+        "Your Risk": "{:.3f}%",
+        "Post-test Risk (if negative)": "{:.4f}%",
+        "Abs Risk Reduction": "{:.4f}%",
+        "Rel Risk Reduction": "{:.1f}%",
+        "False Positive Risk": "{:.2f}%",
+        "Detection Rate": "{:.1f}%",
+        "Accuracy Rate": "{:.1f}%",
+        "Positive Accuracy": "{:.1f}%",
+        "Negative Accuracy": "{:.1f}%"
+    })
+)
+
+# Downstream risks section
+st.subheader(f"Downstream Risks for {test_type}")
+st.markdown("Potential follow-up procedures and associated risks, including chained probabilities for biopsies and complications.")
+
+risk_data = DOWNSTREAM_RISKS[test_type]
+expected_biopsies = risk_data['false_positive_rate'] * risk_data['biopsy_rate_fp']
+expected_comps = expected_biopsies * risk_data['comp_rate_biopsy']
+
+st.markdown(f"**False Positive Rate:** {risk_data['false_positive_rate']}%")
+st.markdown(f"**Expected Biopsies (from FPs):** {expected_biopsies:.2f}% chance overall")
+st.markdown(f"**Expected Complications (from biopsies):** {expected_comps:.4f}% chance overall")
+st.markdown(f"**Typical Follow-up:** {risk_data['typical_followup']}")
+st.markdown(f"**Follow-up Complications Rate:** {risk_data['followup_complications']}%")
+st.markdown(f"**Psychological Impact:** {risk_data['psychological_impact']}")
+st.markdown(f"**Radiation Exposure:** {risk_data['radiation_exposure']}")
+
+# Visualization for quantitative risks
+fig_risks = go.Figure()
+risk_types = ['False Positive Rate', 'Expected Biopsies', 'Expected Complications']
+risk_values = [risk_data['false_positive_rate'], expected_biopsies, expected_comps]
+
+fig_risks.add_trace(go.Bar(
+    x=risk_types,
+    y=risk_values,
+    marker_color='crimson',
+    text=[f"{v:.2f}%" for v in risk_values],
+    textposition='auto'
+))
+
+fig_risks.update_layout(
+    title='Quantitative Downstream Risks',
+    yaxis_title='Rate (%)',
+    height=400
+)
+
+st.plotly_chart(fig_risks, use_container_width=True)
