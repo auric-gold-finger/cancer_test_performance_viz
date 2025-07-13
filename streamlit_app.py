@@ -295,107 +295,156 @@ risk_multipliers = {ct: get_risk_multiplier(ct, smoking_status, pack_years, fami
 
 overall_prevalence = calculate_overall_prevalence(age, sex, risk_multipliers)
 
-if len(tests) > 1:
-    sens, spec = combine_tests(tests, mode)
-    fp_rate = np.mean([DOWNSTREAM_RISKS[t]["false_positive_rate"] for t in tests]) / 100
-    biopsy_rate = np.mean([DOWNSTREAM_RISKS[t]["biopsy_rate_fp"] for t in tests])
-    comp_rate = np.mean([DOWNSTREAM_RISKS[t]["comp_rate_biopsy"] for t in tests])
+if tests:
+    if len(tests) > 1:
+        sens, spec = combine_tests(tests, mode)
+        fp_rate = np.mean([DOWNSTREAM_RISKS[t]["false_positive_rate"] for t in tests]) / 100
+        biopsy_rate = np.mean([DOWNSTREAM_RISKS[t]["biopsy_rate_fp"] for t in tests])
+        comp_rate = np.mean([DOWNSTREAM_RISKS[t]["comp_rate_biopsy"] for t in tests])
+    else:
+        test = tests[0]
+        sens = np.mean([TEST_PERFORMANCE[test].get(ct, {"sensitivity": 0})["sensitivity"] for ct in cancer_types])
+        spec = np.mean([TEST_PERFORMANCE[test].get(ct, {"specificity": 1})["specificity"] for ct in cancer_types])
+        fp_rate = DOWNSTREAM_RISKS[test]["false_positive_rate"] / 100
+        biopsy_rate = DOWNSTREAM_RISKS[test]["biopsy_rate_fp"]
+        comp_rate = DOWNSTREAM_RISKS[test]["comp_rate_biopsy"]
+
+    # Outcomes per 100 people with test
+    population = 100
+    has_cancer = overall_prevalence * population
+    no_cancer = population - has_cancer
+
+    tp = sens * has_cancer
+    fn = (1 - sens) * has_cancer
+    fp = (1 - spec) * no_cancer
+    tn = spec * no_cancer
+
+    positive = tp + fp
+    negative = fn + tn
+
+    biopsy = positive * biopsy_rate
+    no_biopsy = positive - biopsy
+    complication = biopsy * comp_rate
+    no_complication = biopsy - complication
+
+    cancer_treated = tp * 0.8  # Assume 80% of TP lead to treatment
+    benign = tp * 0.2 + fp  # Rest benign + all FP
+    further_monitor = fn  # FN to monitoring
+    reassured = tn
+
+    # Sankey Diagram with labels showing numbers
+    fig = go.Figure(data=[go.Sankey(
+        orientation = 'h',
+        node = dict(
+            pad = 20,
+            thickness = 30,
+            line = dict(color = "gray", width = 0.5),
+            label = [
+                "100 People", 
+                f"Test Positive ({positive:.1f})", f"Test Negative ({negative:.1f})", 
+                f"Follow-up Biopsy ({biopsy:.1f})", f"No Biopsy Needed ({no_biopsy:.1f})", f"Reassured ({reassured:.1f})", f"Further Monitoring ({further_monitor:.1f})", 
+                f"Cancer Found & Treated ({cancer_treated:.1f})", f"Benign (False Alarm) ({benign:.1f})", f"Complication from Biopsy ({complication:.1f})"
+            ],
+            color = [
+                "#AED6F1", "#F39C12", "#BDC3C7",
+                "#8E44AD", "#95A5A6", "#2ECC71", "#3498DB",
+                "#1ABC9C", "#E67E22", "#E74C3C"
+            ],
+            x = [0, 0.2, 0.2, 0.4, 0.4, 0.6, 0.6, 0.8, 0.8, 0.8],
+            y = [0.5, 0.05, 0.95, 0.0, 0.2, 0.8, 1.0, -0.05, 0.15, 0.35],  # Spread vertically more
+        ),
+        link = dict(
+            source = [
+                0, 0, 
+                1, 1, 
+                2, 2, 
+                3, 3, 3, 
+                4 
+            ],
+            target = [
+                1, 2,
+                3, 4,
+                5, 6,
+                7, 8, 9,
+                8 
+            ],
+            value = [
+                positive, negative,
+                biopsy, no_biopsy,
+                reassured, further_monitor,
+                cancer_treated, benign, complication,
+                no_biopsy 
+            ],
+            color = 'rgba(189, 195, 199, 0.5)',
+            hovercolor = 'blue',
+            label = [f"{v:.1f}" for v in [positive, negative, biopsy, no_biopsy, reassured, further_monitor, cancer_treated, benign, complication, no_biopsy]]  
+        ),
+        textfont = dict(size=14, color="black")
+    )])
+
+    fig.update_layout(
+        title_text="Patient Pathways in Screening for 100 People",
+        font_size=14,
+        height=800,
+        width=1200
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Metrics
+    st.markdown("<div class='metric-box'>", unsafe_allow_html=True)
+    st.write(f"Overall Risk: {overall_prevalence*100:.2f}%")
+    st.write(f"Positive Results: {positive:.1f}")
+    st.write(f"Negative Results: {negative:.1f}")
+    st.write(f"Biopsies: {biopsy:.1f}")
+    st.write(f"Complications: {complication:.1f}")
+    st.write(f"Cancer Found & Treated: {cancer_treated:.1f}")
+    st.write(f"Benign Results (False Alarm): {benign:.1f}")
+    st.markdown("</div>", unsafe_allow_html=True)
 else:
-    test = tests[0]
-    sens = np.mean([TEST_PERFORMANCE[test].get(ct, {"sensitivity": 0})["sensitivity"] for ct in cancer_types])
-    spec = np.mean([TEST_PERFORMANCE[test].get(ct, {"specificity": 1})["specificity"] for ct in cancer_types])
-    fp_rate = DOWNSTREAM_RISKS[test]["false_positive_rate"] / 100
-    biopsy_rate = DOWNSTREAM_RISKS[test]["biopsy_rate_fp"]
-    comp_rate = DOWNSTREAM_RISKS[test]["comp_rate_biopsy"]
+    # No tests selected - Baseline risk Sankey
+    population = 100
+    has_cancer = overall_prevalence * population
+    no_cancer = population - has_cancer
 
-# Outcomes per 100 people
-population = 100
-has_cancer = overall_prevalence * population
-no_cancer = population - has_cancer
+    # Simple Sankey for baseline
+    fig = go.Figure(data=[go.Sankey(
+        orientation = 'h',
+        node = dict(
+            pad = 20,
+            thickness = 30,
+            line = dict(color = "gray", width = 0.5),
+            label = [
+                "100 People", 
+                f"Has Cancer (Undetected) ({has_cancer:.1f})", f"No Cancer ({no_cancer:.1f})"
+            ],
+            color = [
+                "#AED6F1", "#E74C3C", "#2ECC71"
+            ],
+            x = [0, 0.4, 0.4],
+            y = [0.5, 0.3, 0.7],
+        ),
+        link = dict(
+            source = [0, 0],
+            target = [1, 2],
+            value = [has_cancer, no_cancer],
+            color = 'rgba(189, 195, 199, 0.5)',
+            hovercolor = 'blue',
+            label = [f"{has_cancer:.1f}", f"{no_cancer:.1f}"]
+        ),
+        textfont = dict(size=14, color="black")
+    )])
 
-tp = sens * has_cancer
-fn = (1 - sens) * has_cancer
-fp = (1 - spec) * no_cancer
-tn = spec * no_cancer
+    fig.update_layout(
+        title_text="Baseline Cancer Risk for 100 People (No Screening)",
+        font_size=14,
+        height=400,
+        width=1200
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
-positive = tp + fp
-negative = fn + tn
-
-biopsy = positive * biopsy_rate
-no_biopsy = positive - biopsy
-complication = biopsy * comp_rate
-no_complication = biopsy - complication
-
-cancer_treated = tp * 0.8  # Assume 80% of TP lead to treatment
-benign = tp * 0.2 + fp  # Rest benign + all FP
-further_monitor = fn  # FN to monitoring
-reassured = tn
-
-# Sankey Diagram
-fig = go.Figure(data=[go.Sankey(
-    orientation = 'h',
-    node = dict(
-        pad = 20,
-        thickness = 30,
-        line = dict(color = "gray", width = 0.5),
-        label = [
-            "100 People", 
-            f"Test Positive ({positive:.1f})", f"Test Negative ({negative:.1f})", 
-            f"Follow-up Biopsy ({biopsy:.1f})", f"No Biopsy Needed ({no_biopsy:.1f})", f"Reassured ({reassured:.1f})", f"Further Monitoring ({further_monitor:.1f})", 
-            f"Cancer Found & Treated ({cancer_treated:.1f})", f"Benign (False Alarm) ({benign:.1f})", f"Complication from Biopsy ({complication:.1f})"
-        ],
-        color = [
-            "#AED6F1", "#F39C12", "#BDC3C7",
-            "#8E44AD", "#95A5A6", "#2ECC71", "#3498DB",
-            "#1ABC9C", "#E67E22", "#E74C3C"
-        ],
-        x = [0, 0.2, 0.2, 0.4, 0.4, 0.6, 0.6, 0.8, 0.8, 0.8],
-        y = [0.5, 0.05, 0.95, 0.0, 0.2, 0.8, 1.0, -0.05, 0.15, 0.35],  # Spread vertically more
-    ),
-    link = dict(
-        source = [
-            0, 0, 
-            1, 1, 
-            2, 2, 
-            3, 3, 3, 
-            4 
-        ],
-        target = [
-            1, 2,
-            3, 4,
-            5, 6,
-            7, 8, 9,
-            8 
-        ],
-        value = [
-            positive, negative,
-            biopsy, no_biopsy,
-            reassured, further_monitor,
-            cancer_treated, benign, complication,
-            no_biopsy 
-        ],
-        color = 'rgba(189, 195, 199, 0.5)',
-        hovercolor = 'blue',
-        label = [f"{v:.1f}" for v in [positive, negative, biopsy, no_biopsy, reassured, further_monitor, cancer_treated, benign, complication, no_biopsy]]  
-    ),
-    textfont = dict(size=14, color="black")
-)])
-
-fig.update_layout(
-    title_text="Patient Pathways in Screening for 100 People",
-    font_size=14,
-    height=800,
-    width=1200
-)
-st.plotly_chart(fig, use_container_width=True)
-
-# Metrics
-st.markdown("<div class='metric-box'>", unsafe_allow_html=True)
-st.write(f"Overall Risk: {overall_prevalence*100:.2f}%")
-st.write(f"Positive Results: {positive:.1f}")
-st.write(f"Negative Results: {negative:.1f}")
-st.write(f"Biopsies: {biopsy:.1f}")
-st.write(f"Complications: {complication:.1f}")
-st.write(f"Cancer Found & Treated: {cancer_treated:.1f}")
-st.write(f"Benign Results (False Alarm): {benign:.1f}")
-st.markdown("</div>", unsafe_allow_html=True)
+    # Metrics for baseline
+    st.markdown("<div class='metric-box'>", unsafe_allow_html=True)
+    st.write(f"Overall Risk: {overall_prevalence*100:.2f}%")
+    st.write(f"Has Cancer (Undetected): {has_cancer:.1f}")
+    st.write(f"No Cancer: {no_cancer:.1f}")
+    st.markdown("</div>", unsafe_allow_html=True)
