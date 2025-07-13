@@ -331,7 +331,7 @@ benign = tp * 0.2 + fp  # Rest benign + all FP
 further_monitor = fn  # FN to monitoring
 reassured = tn
 
-# Sankey Diagram - Spread vertically with adjusted y positions
+# Sankey Diagram
 fig = go.Figure(data=[go.Sankey(
     orientation = 'h',
     node = dict(
@@ -340,9 +340,9 @@ fig = go.Figure(data=[go.Sankey(
         line = dict(color = "gray", width = 0.5),
         label = [
             "100 People", 
-            "Test Positive", "Test Negative", 
-            "Follow-up Biopsy", "No Biopsy Needed", "Reassured", "Further Monitoring", 
-            "Cancer Found & Treated", "Benign (False Alarm)", "Complication from Biopsy"
+            f"Test Positive ({positive:.1f})", f"Test Negative ({negative:.1f})", 
+            f"Follow-up Biopsy ({biopsy:.1f})", f"No Biopsy Needed ({no_biopsy:.1f})", f"Reassured ({reassured:.1f})", f"Further Monitoring ({further_monitor:.1f})", 
+            f"Cancer Found & Treated ({cancer_treated:.1f})", f"Benign (False Alarm) ({benign:.1f})", f"Complication from Biopsy ({complication:.1f})"
         ],
         color = [
             "#AED6F1", "#F39C12", "#BDC3C7",
@@ -350,7 +350,7 @@ fig = go.Figure(data=[go.Sankey(
             "#1ABC9C", "#E67E22", "#E74C3C"
         ],
         x = [0, 0.2, 0.2, 0.4, 0.4, 0.6, 0.6, 0.8, 0.8, 0.8],
-        y = [0.5, 0.1, 0.9, 0.05, 0.25, 0.75, 0.95, 0.0, 0.15, 0.3],  # Adjusted y to spread vertically and reduce overlap
+        y = [0.5, 0.05, 0.95, 0.0, 0.2, 0.8, 1.0, -0.05, 0.15, 0.35],  # Spread vertically more
     ),
     link = dict(
         source = [
@@ -384,7 +384,7 @@ fig = go.Figure(data=[go.Sankey(
 fig.update_layout(
     title_text="Patient Pathways in Screening for 100 People",
     font_size=14,
-    height=800,  # Increased height to allow vertical spread
+    height=800,
     width=1200
 )
 st.plotly_chart(fig, use_container_width=True)
