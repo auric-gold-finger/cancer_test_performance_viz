@@ -7,25 +7,26 @@ import numpy as np
 st.markdown("""
 <style>
     .stApp {
-        background-color: #f8f9fa;
+        background-color: #f9fafb;
     }
     .stMetric {
         background-color: white;
-        border-radius: 8px;
-        padding: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
     .stExpander {
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-        margin-bottom: 15px;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        background-color: white;
     }
     h1, h2, h3 {
-        color: #2c3e50;
+        color: #1f2937;
     }
-    .stButton > button {
-        background-color: #4CAF50;
-        color: white;
+    .stDataFrame {
+        border-radius: 12px;
+        overflow: hidden;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -483,7 +484,7 @@ with st.expander("Risk Change Details"):
         name='Now',
         x=df["Cancer Type"],
         y=df["Your Risk"],
-        marker_color='#3498db',
+        marker_color='#3b82f6',
         textposition='outside',
         texttemplate='%{y:.2f}%',
         opacity=0.8
@@ -492,7 +493,7 @@ with st.expander("Risk Change Details"):
         name='After Negative',
         x=df["Cancer Type"],
         y=df["Post-test Risk (if negative)"],
-        marker_color='#e74c3c',
+        marker_color='#ef4444',
         textposition='outside',
         texttemplate='%{y:.2f}%',
         opacity=0.8
@@ -506,9 +507,10 @@ with st.expander("Risk Change Details"):
         yaxis=dict(range=[0, y_max]),
         legend=dict(orientation='h', yanchor="bottom", y=1.02, xanchor="right", x=1),
         plot_bgcolor='white',
-        bargap=0.15
+        bargap=0.15,
+        font=dict(family="Arial", size=12, color="#1f2937")
     )
-    fig_comparison.update_xaxes(tickangle=45)
+    fig_comparison.update_xaxes(tickangle=45, tickfont_size=12)
     st.plotly_chart(fig_comparison, use_container_width=True)
 
 # Other expanders with modern colors
@@ -517,30 +519,32 @@ with st.expander("Test Outcome Breakdown"):
         labels=['Correct Detection', 'False Alarm', 'Missed Cancer', 'Correct Clear'],
         values=pie_values,
         hole=.4,
-        marker_colors=['#2ecc71', '#e74c3c', '#f39c12', '#3498db']
+        marker_colors=['#22c55e', '#ef4444', '#f59e0b', '#3b82f6']
     )])
-    fig_pie.update_layout(height=400)
+    fig_pie.update_layout(height=400, font=dict(family="Arial", size=12, color="#1f2937"))
     st.plotly_chart(fig_pie, use_container_width=True)
 
 with st.expander("Detailed Table"):
     simplified_df = df[["Cancer Type", "Your Risk", "Post-test Risk (if negative)", "Abs Risk Reduction", "Rel Risk Reduction", "False Positive Risk"]]
-    st.dataframe(simplified_df.style.format({
-        "Your Risk": "{:.3f}%",
-        "Post-test Risk (if negative)": "{:.4f}%",
-        "Abs Risk Reduction": "{:.4f}%",
-        "Rel Risk Reduction": "{:.1f}%",
-        "False Positive Risk": "{:.2f}%"
-    }).background_gradient(cmap='Blues', subset=["Your Risk", "Post-test Risk (if negative)"]))
+    st.dataframe(
+        simplified_df.style.format({
+            "Your Risk": "{:.3f}%",
+            "Post-test Risk (if negative)": "{:.4f}%",
+            "Abs Risk Reduction": "{:.4f}%",
+            "Rel Risk Reduction": "{:.1f}%",
+            "False Positive Risk": "{:.2f}%"
+        })
+    )
 
 with st.expander("Follow-Up Risks"):
     fig_risks = go.Figure(go.Bar(
         x=['False Positive', 'Biopsy', 'Complication'],
         y=[risk_data['false_positive_rate'], expected_biopsies, expected_comps],
-        marker_color='#e74c3c',
+        marker_color='#ef4444',
         textposition='outside',
         texttemplate='%{y:.2f}%'
     ))
-    fig_risks.update_layout(height=300, yaxis_title='Chance (%)', plot_bgcolor='white')
+    fig_risks.update_layout(height=300, yaxis_title='Chance (%)', plot_bgcolor='white', font=dict(family="Arial", size=12, color="#1f2937"))
     st.plotly_chart(fig_risks, use_container_width=True)
     st.markdown(f"**Next Steps:** {risk_data['typical_followup']}")
     st.markdown(f"**Other Notes:** {risk_data['psychological_impact']}; {risk_data['radiation_exposure']}")
