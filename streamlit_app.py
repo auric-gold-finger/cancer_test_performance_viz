@@ -1,25 +1,50 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import numpy as np
+
+# Custom CSS for modern look
+st.markdown("""
+<style>
+    .stApp {
+        background-color: #f8f9fa;
+    }
+    .stMetric {
+        background-color: white;
+        border-radius: 8px;
+        padding: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .stExpander {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        margin-bottom: 15px;
+    }
+    h1, h2, h3 {
+        color: #2c3e50;
+    }
+    .stButton > button {
+        background-color: #4CAF50;
+        color: white;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # Configure the app
 st.set_page_config(
-    page_title="Cancer Screening Test Analysis",
-    page_icon="📊",
+    page_title="Cancer Screening Insights",
+    page_icon="🩺",
     layout="wide"
 )
 
-st.title("Cancer Screening Test Analysis")
+st.title("🩺 Cancer Screening Insights")
 st.markdown("""
-This tool helps you understand how cancer screening tests might affect your personal cancer risk. 
-Enter your information on the left, and we'll show simple takeaways about benefits and risks.
-**Important:** This is for educational purposes only. Talk to your doctor for medical advice.
-Data updated as of July 2025.
+This simple tool shows how screening tests might change your cancer risk view. 
+Enter your info on the left for personalized estimates.
+**Note:** For education only—see your doctor for advice. Data as of July 2025.
 """)
 
-# Updated with latest available data as of July 2025
+# Data structures (unchanged)
 TEST_PERFORMANCE = {
     "Whole-body MRI": {
         "lung": {"sensitivity": 0.50, "specificity": 0.93},
@@ -85,14 +110,13 @@ TEST_PERFORMANCE = {
     }
 }
 
-# Downstream testing and complication risks - Updated with latest estimates
 DOWNSTREAM_RISKS = {
     "Whole-body MRI": {
-        "false_positive_rate": 8.0,  # Updated from recent studies (e.g., 8% FPR in CPS cohorts)
-        "biopsy_rate_fp": 0.5,  # Approx 50% of FPs lead to biopsy
-        "comp_rate_biopsy": 0.03,  # 3% complication rate per biopsy
+        "false_positive_rate": 8.0,
+        "biopsy_rate_fp": 0.5,
+        "comp_rate_biopsy": 0.03,
         "typical_followup": "Additional MRI with contrast, possible biopsy",
-        "followup_complications": 2.1,  # Contrast reactions, biopsy complications
+        "followup_complications": 2.1,
         "psychological_impact": "Moderate - incidental findings cause anxiety",
         "radiation_exposure": "None from MRI, possible CT follow-up"
     },
@@ -101,22 +125,21 @@ DOWNSTREAM_RISKS = {
         "biopsy_rate_fp": 0.5,
         "comp_rate_biopsy": 0.03,
         "typical_followup": "Imaging scans (CT, MRI, PET), possible biopsy",
-        "followup_complications": 3.8,  # Multiple imaging, biopsy risks
+        "followup_complications": 3.8,
         "psychological_impact": "High - positive blood test causes significant anxiety",
         "radiation_exposure": "Moderate to high from follow-up CT/PET scans"
     },
     "CT Scan": {
-        "false_positive_rate": 4.8,  # Updated from recent lung screening studies
+        "false_positive_rate": 4.8,
         "biopsy_rate_fp": 0.5,
         "comp_rate_biopsy": 0.03,
         "typical_followup": "Repeat CT, additional imaging, possible biopsy",
-        "followup_complications": 4.2,  # Additional radiation, biopsy complications
+        "followup_complications": 4.2,
         "psychological_impact": "Moderate to high - abnormal findings cause worry",
         "radiation_exposure": "Additional radiation from repeat scans"
     }
 }
 
-# Real US cancer incidence rates per 100,000 (SEER/CDC 2018-2022 data, no major 2025 changes) - EXPANDED
 CANCER_INCIDENCE = {
     "lung": {
         "male": {40: 8, 50: 25, 60: 85, 70: 180, 80: 220},
@@ -216,8 +239,8 @@ CANCER_INCIDENCE = {
     }
 }
 
+# Functions (unchanged)
 def calculate_ppv_npv(sensitivity, specificity, prevalence):
-    """Calculate test accuracy metrics"""
     if prevalence == 0:
         return 0, 1
     ppv = (sensitivity * prevalence) / (sensitivity * prevalence + (1 - specificity) * (1 - prevalence)) if (sensitivity * prevalence + (1 - specificity) * (1 - prevalence)) > 0 else 0
@@ -225,17 +248,14 @@ def calculate_ppv_npv(sensitivity, specificity, prevalence):
     return ppv, npv
 
 def calculate_post_test_risk_negative(sensitivity, specificity, prevalence):
-    """Calculate probability you still have cancer after a negative test - FIXED"""
     if prevalence == 0:
         return 0
     return ((1 - sensitivity) * prevalence) / ((1 - sensitivity) * prevalence + specificity * (1 - prevalence)) if ((1 - sensitivity) * prevalence + specificity * (1 - prevalence)) > 0 else 0
 
 def get_prevalence_from_incidence(incidence_rate):
-    """Convert yearly cancer rate to current prevalence"""
     return (incidence_rate / 100000) * 5
 
 def interpolate_incidence(age, sex, cancer_type):
-    """Get cancer risk for specific age"""
     if cancer_type not in CANCER_INCIDENCE:
         return 0
     age_points = list(CANCER_INCIDENCE[cancer_type][sex].keys())
@@ -249,10 +269,7 @@ def interpolate_incidence(age, sex, cancer_type):
         return np.interp(age, age_points, incidence_points)
 
 def get_risk_multiplier(cancer_type, smoking_status, pack_years, family_history, genetic_mutations, personal_history):
-    """Calculate risk multiplier based on risk factors"""
     multiplier = 1.0
-    
-    # Smoking effects (based on epidemiological studies)
     if smoking_status == "Current smoker":
         if cancer_type == "lung":
             if pack_years < 20:
@@ -277,8 +294,6 @@ def get_risk_multiplier(cancer_type, smoking_status, pack_years, family_history,
             multiplier *= 1.8
         elif cancer_type in ["colorectal", "liver"]:
             multiplier *= 1.4
-    
-    # Family history effects
     cancer_family_map = {
         "breast": "Breast cancer",
         "colorectal": "Colorectal cancer", 
@@ -287,10 +302,9 @@ def get_risk_multiplier(cancer_type, smoking_status, pack_years, family_history,
         "lung": "Lung cancer",
         "pancreatic": "Pancreatic cancer"
     }
-    
     if cancer_family_map.get(cancer_type) in family_history:
         if cancer_type == "breast":
-            multiplier *= 2.3  # First-degree relative
+            multiplier *= 2.3
         elif cancer_type == "colorectal":
             multiplier *= 2.2
         elif cancer_type == "prostate":
@@ -299,173 +313,96 @@ def get_risk_multiplier(cancer_type, smoking_status, pack_years, family_history,
             multiplier *= 3.1
         elif cancer_type in ["lung", "pancreatic"]:
             multiplier *= 1.8
-    
-    # Genetic mutation effects
     if "BRCA1" in genetic_mutations:
         if cancer_type == "breast":
-            multiplier *= 35  # Lifetime risk ~72%
+            multiplier *= 35
         elif cancer_type == "ovarian":
-            multiplier *= 20  # Lifetime risk ~44%
-    
+            multiplier *= 20
     if "BRCA2" in genetic_mutations:
         if cancer_type == "breast":
-            multiplier *= 20  # Lifetime risk ~69%
+            multiplier *= 20
         elif cancer_type == "ovarian":
-            multiplier *= 8   # Lifetime risk ~17%
+            multiplier *= 8
         elif cancer_type == "prostate":
             multiplier *= 4.5
-    
     if "Lynch syndrome" in genetic_mutations:
         if cancer_type == "colorectal":
-            multiplier *= 15  # Lifetime risk ~80%
+            multiplier *= 15
         elif cancer_type == "ovarian":
             multiplier *= 6
         elif cancer_type == "endometrial":
             multiplier *= 12
-    
     if "TP53 (Li-Fraumeni)" in genetic_mutations:
-        # Li-Fraumeni increases risk for many cancers
         if cancer_type in ["breast", "lung", "colorectal", "liver", "brain", "sarcoma"]:
             multiplier *= 10
-    
-    # Personal cancer history (increases risk of second cancers)
     if personal_history:
-        multiplier *= 2.5  # General increased risk for second cancers
-    
-    return min(multiplier, 100)  # Cap at 100x to avoid unrealistic values
+        multiplier *= 2.5
+    return min(multiplier, 100)
 
 def calculate_overall_cancer_prevalence(age, sex, risk_multipliers=None):
-    """Calculate overall cancer prevalence for age group"""
     total_prevalence = 0
-    
     for cancer_type in CANCER_INCIDENCE.keys():
         if cancer_type in ["prostate", "testicular"] and sex == "female":
             continue
         if cancer_type in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male":
             continue
-            
         incidence_rate = interpolate_incidence(age, sex, cancer_type)
         prevalence = get_prevalence_from_incidence(incidence_rate)
-        
         if risk_multipliers and cancer_type in risk_multipliers:
             prevalence *= risk_multipliers[cancer_type]
-        
         total_prevalence += prevalence
-    
     return total_prevalence
 
-# Sidebar inputs
+# Sidebar
 with st.sidebar:
-    st.header("Your Information")
-    st.markdown("Fill in these details to personalize your results.")
-
-    age = st.slider("Age", min_value=30, max_value=90, value=55, step=1, help="Your current age.")
-    sex = st.selectbox("Sex", ["male", "female"], help="Biological sex for risk calculation.")
-
-    test_type = st.selectbox(
-        "Screening Test",
-        ["Whole-body MRI", "Grail Blood Test", "CT Scan"],
-        help="Choose the test you're interested in."
-    )
-
+    st.header("Your Details")
+    age = st.slider("Age", 30, 90, 55)
+    sex = st.selectbox("Sex", ["male", "female"])
+    test_type = st.selectbox("Test Type", ["Whole-body MRI", "Grail Blood Test", "CT Scan"])
     st.header("Risk Factors")
-    st.markdown("These can increase your cancer risk. Select what applies to you.")
-
-    smoking_status = st.selectbox(
-        "Smoking Status",
-        ["Never smoked", "Former smoker", "Current smoker"],
-        help="Smoking raises risk for many cancers, especially lung."
-    )
-
-    if smoking_status in ["Former smoker", "Current smoker"]:
-        pack_years = st.slider(
-            "Pack-years of smoking",
-            min_value=0, max_value=80, value=20, step=5,
-            help="Packs per day × years smoked (e.g., 1 pack/day for 20 years = 20)."
-        )
+    smoking_status = st.selectbox("Smoking", ["Never smoked", "Former smoker", "Current smoker"])
+    if smoking_status != "Never smoked":
+        pack_years = st.slider("Pack-years", 0, 80, 20, 5)
     else:
         pack_years = 0
-
-    family_history = st.multiselect(
-        "Family History (parents, siblings, children)",
-        ["Breast cancer", "Colorectal cancer", "Prostate cancer", "Ovarian cancer", 
-         "Lung cancer", "Pancreatic cancer"],
-        help="Close relatives with these cancers may increase your risk."
-    )
-
-    genetic_mutations = st.multiselect(
-        "Known Genetic Mutations (from testing)",
-        ["BRCA1", "BRCA2", "Lynch syndrome", "TP53 (Li-Fraumeni)"],
-        help="Only select if confirmed by a genetic test."
-    )
-
-    personal_history = st.checkbox(
-        "I have had cancer before",
-        help="Previous cancer can raise risk of new ones."
-    )
-
-    use_custom_probability = st.checkbox("Use my own risk estimate", help="Override calculations with your doctor's estimate.")
-
+    family_history = st.multiselect("Family Cancer History", ["Breast cancer", "Colorectal cancer", "Prostate cancer", "Ovarian cancer", "Lung cancer", "Pancreatic cancer"])
+    genetic_mutations = st.multiselect("Genetic Mutations", ["BRCA1", "BRCA2", "Lynch syndrome", "TP53 (Li-Fraumeni)"])
+    personal_history = st.checkbox("Personal Cancer History")
+    use_custom_probability = st.checkbox("Custom Risk (%)")
     if use_custom_probability:
-        custom_probability = st.slider(
-            "My estimated cancer risk (%)", 
-            min_value=0.1, max_value=50.0, value=5.0, step=0.1,
-            help="Enter a percentage if you have a custom estimate."
-        )
+        custom_probability = st.slider("Custom Risk", 0.1, 50.0, 5.0, 0.1)
 
-# Calculate personalized risk multipliers
+# Calculations (unchanged)
 cancer_types = list(TEST_PERFORMANCE[test_type].keys())
-
 risk_multipliers = {}
 for cancer_type in cancer_types:
-    if cancer_type in ["prostate", "testicular"] and sex == "female":
+    if (cancer_type in ["prostate", "testicular"] and sex == "female") or (cancer_type in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male"):
         continue
-    if cancer_type in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male":
-        continue
-    risk_multipliers[cancer_type] = get_risk_multiplier(
-        cancer_type, smoking_status, pack_years, family_history, 
-        genetic_mutations, personal_history
-    )
+    risk_multipliers[cancer_type] = get_risk_multiplier(cancer_type, smoking_status, pack_years, family_history, genetic_mutations, personal_history)
 
-# Calculate overall cancer prevalence for context
 baseline_overall_prevalence = calculate_overall_cancer_prevalence(age, sex)
 personalized_overall_prevalence = calculate_overall_cancer_prevalence(age, sex, risk_multipliers)
 
-# Calculate results
 results = []
-overall_tp = 0
-overall_fp = 0
-overall_fn = 0
-overall_tn = 0
-overall_pre_test_risk = 0
-overall_post_test_risk = 0
+overall_tp = overall_fp = overall_fn = overall_tn = overall_pre_test_risk = overall_post_test_risk = 0
 
 for cancer_type in cancer_types:
-    if cancer_type in ["prostate", "testicular"] and sex == "female":
+    if (cancer_type in ["prostate", "testicular"] and sex == "female") or (cancer_type in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male"):
         continue
-    if cancer_type in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male":
-        continue
-        
     sensitivity = TEST_PERFORMANCE[test_type][cancer_type]["sensitivity"]
     specificity = TEST_PERFORMANCE[test_type][cancer_type]["specificity"]
-    
     if use_custom_probability:
         prevalence = custom_probability / 100
     else:
         incidence_rate = interpolate_incidence(age, sex, cancer_type)
         baseline_prevalence = get_prevalence_from_incidence(incidence_rate)
         prevalence = baseline_prevalence * risk_multipliers[cancer_type]
-    
     ppv, npv = calculate_ppv_npv(sensitivity, specificity, prevalence)
     post_test_risk = calculate_post_test_risk_negative(sensitivity, specificity, prevalence)
     false_positive_risk = (1 - specificity) * (1 - prevalence)
-    
-    # Calculate baseline risk for comparison
     baseline_incidence = interpolate_incidence(age, sex, cancer_type)
     baseline_risk = get_prevalence_from_incidence(baseline_incidence)
-    
     abs_risk_reduction = prevalence - post_test_risk
-    
     results.append({
         "Cancer Type": cancer_type.replace("_", " ").title(),
         "Baseline Risk": round(baseline_risk * 100, 3),
@@ -480,8 +417,6 @@ for cancer_type in cancer_types:
         "Positive Accuracy": round(ppv * 100, 1),
         "Negative Accuracy": round(npv * 100, 1)
     })
-    
-    # Accumulate for overall
     tp = sensitivity * prevalence
     fp = (1 - specificity) * (1 - prevalence)
     fn = (1 - sensitivity) * prevalence
@@ -495,163 +430,117 @@ for cancer_type in cancer_types:
 
 df = pd.DataFrame(results)
 
-# Overall outcomes for pie
 overall_total = overall_tp + overall_fp + overall_fn + overall_tn
-if overall_total > 0:
-    pie_values = [overall_tp / overall_total * 100, overall_fp / overall_total * 100, overall_fn / overall_total * 100, overall_tn / overall_total * 100]
-else:
-    pie_values = [0, 0, 0, 100]
+pie_values = [overall_tp / overall_total * 100, overall_fp / overall_total * 100, overall_fn / overall_total * 100, overall_tn / overall_total * 100] if overall_total > 0 else [0, 0, 0, 100]
 
-# Calculate overall metrics
 overall_abs_reduction = (overall_pre_test_risk - overall_post_test_risk) * 100
 overall_rel_reduction = ((overall_pre_test_risk - overall_post_test_risk) / overall_pre_test_risk * 100) if overall_pre_test_risk > 0 else 0
-overall_fp_risk = overall_fp * 100  # Approximate overall FP %
 
-# Key Takeaways Section
-st.header("Key Takeaways")
-st.markdown("Here's a quick summary of what this means for you.")
-
+# Key Takeaways
+st.header("Quick Summary")
 col1, col2, col3 = st.columns(3)
-
 with col1:
-    st.metric("Your Overall Cancer Risk", f"{personalized_overall_prevalence*100:.2f}%", help="This is your estimated chance of having cancer now, based on your info.")
-    st.metric("Risk After Negative Test", f"{overall_post_test_risk*100:.2f}%", help="If the test is negative, your risk drops to this.")
-
+    st.metric("Your Risk Now", f"{personalized_overall_prevalence*100:.2f}%")
 with col2:
-    st.metric("Benefit: Risk Reduction", f"{overall_abs_reduction:.2f}% points", delta=f"{overall_rel_reduction:.1f}% relative", help="How much a negative test lowers your risk.")
-    
+    st.metric("Risk After Negative Test", f"{overall_post_test_risk*100:.2f}%")
 with col3:
-    risk_data = DOWNSTREAM_RISKS[test_type]
-    expected_biopsies = risk_data['false_positive_rate'] * risk_data['biopsy_rate_fp']
-    expected_comps = expected_biopsies * risk_data['comp_rate_biopsy']
-    st.metric("Risk: False Positive Chance", f"{risk_data['false_positive_rate']}%", help="Chance of a wrong 'positive' result leading to more tests.")
-    st.metric("Possible Biopsies/Complications", f"{expected_biopsies:.2f}% / {expected_comps:.4f}%", help="Estimated chance of needing a biopsy or having a complication from follow-up.")
+    st.metric("Risk Drop", f"{overall_abs_reduction:.2f}%", f"{overall_rel_reduction:.1f}% relative")
 
-st.markdown("""
-- **Benefit:** A negative test can give you peace of mind by lowering your estimated cancer risk.
-- **Tradeoff:** Positive results might lead to extra tests or biopsies, even if you don't have cancer (false positive).
-- **Next Steps:** If your risk is high, discuss screening with your doctor. Tests aren't perfect and can sometimes find slow-growing cancers that don't need treatment.
-""")
+risk_data = DOWNSTREAM_RISKS[test_type]
+expected_biopsies = risk_data['false_positive_rate'] * risk_data['biopsy_rate_fp']
+expected_comps = expected_biopsies * risk_data['comp_rate_biopsy']
 
-# Risk factors summary
-if any([smoking_status != "Never smoked", family_history, genetic_mutations, personal_history]):
-    with st.expander("Your Risk Factors (Click to expand)"):
+col4, col5 = st.columns(2)
+with col4:
+    st.metric("False Positive Chance", f"{risk_data['false_positive_rate']}%")
+with col5:
+    st.metric("Biopsy/Complication Chance", f"{expected_biopsies:.2f}% / {expected_comps:.4f}%")
+
+# Expander for risk factors
+with st.expander("Your Risk Factors"):
+    if any([smoking_status != "Never smoked", family_history, genetic_mutations, personal_history]):
         risk_factors_list = []
-        
         if smoking_status == "Current smoker":
             risk_factors_list.append(f"Current smoker ({pack_years} pack-years)")
         elif smoking_status == "Former smoker":
             risk_factors_list.append(f"Former smoker ({pack_years} pack-years)")
-        
         if family_history:
             risk_factors_list.append(f"Family history: {', '.join(family_history)}")
-        
         if genetic_mutations:
             risk_factors_list.append(f"Genetic mutations: {', '.join(genetic_mutations)}")
-        
         if personal_history:
             risk_factors_list.append("Personal cancer history")
-        
         for factor in risk_factors_list:
             st.write(f"• {factor}")
-else:
-    st.info("You have no major risk factors selected. Your risks are based on average for your age and sex.")
+    else:
+        st.info("No major risk factors selected.")
 
-# Visual Sections with Expanders
-with st.expander("See How Your Risk Changes with a Negative Test"):
-    st.subheader("Cancer Risk Before vs. After Negative Test")
-    st.markdown("This chart shows your current risk (light red) and risk after a negative test (dark red) for different cancers.")
-
+# Risk Change Chart
+with st.expander("Risk Change Details"):
     fig_comparison = go.Figure()
-
     fig_comparison.add_trace(go.Bar(
-        name='Current Risk',
+        name='Now',
         x=df["Cancer Type"],
         y=df["Your Risk"],
-        marker_color='lightcoral',
-        opacity=0.8,
-        hovertemplate="<b>%{x}</b><br>Current risk: %{y}%"
+        marker_color='#3498db',
+        text=df["Your Risk"],
+        textposition='outside',
+        texttemplate='%{text:.2f}%',
+        opacity=0.8
     ))
-
     fig_comparison.add_trace(go.Bar(
-        name='After Negative Test',
+        name='After Negative',
         x=df["Cancer Type"],
         y=df["Post-test Risk (if negative)"],
-        marker_color='darkred',
-        opacity=0.8,
-        hovertemplate="<b>%{x}</b><br>After negative: %{y}%"
+        marker_color='#e74c3c',
+        text=df["Post-test Risk (if negative)"],
+        textposition='outside',
+        texttemplate='%{text:.2f}%',
+        opacity=0.8
     ))
-
+    max_risk = df["Your Risk"].max()
     fig_comparison.update_layout(
-        xaxis_title='Cancer Type',
-        yaxis_title='Risk (%)',
-        yaxis=dict(range=[0, max(df["Your Risk"].max(), 100)]),
         barmode='group',
-        height=400
+        height=600,  # Taller for better visibility
+        yaxis_title='Risk (%)',
+        yaxis=dict(range=[0, max_risk * 1.2 if max_risk < 1 else max_risk * 1.1]),  # Dynamic padding
+        legend=dict(orientation='h', yanchor="bottom", y=1.02, xanchor="right", x=1),
+        plot_bgcolor='white',
+        bargap=0.15
     )
-
+    fig_comparison.update_xaxes(tickangle=45)
     st.plotly_chart(fig_comparison, use_container_width=True)
 
-with st.expander("See Expected Test Outcomes"):
-    st.subheader("What Might Happen with the Test")
-    st.markdown("This pie shows the likely results: correct detections, false alarms, missed cancers, or correct all-clear.")
-
+# Other expanders with modern colors
+with st.expander("Test Outcome Breakdown"):
     fig_pie = go.Figure(data=[go.Pie(
-        labels=['Correct Detection (True Positive)', 'False Alarm (False Positive)', 'Missed Cancer (False Negative)', 'Correct All-Clear (True Negative)'],
+        labels=['Correct Detection', 'False Alarm', 'Missed Cancer', 'Correct Clear'],
         values=pie_values,
-        hole=.3,
-        marker_colors=['#FF9999', '#FF6666', '#CC0000', '#66CC66']
+        hole=.4,
+        marker_colors=['#2ecc71', '#e74c3c', '#f39c12', '#3498db']
     )])
+    fig_pie.update_layout(height=400)
     st.plotly_chart(fig_pie, use_container_width=True)
 
-with st.expander("Detailed Results Table"):
-    st.subheader("Breakdown by Cancer Type")
-    st.markdown("""
-    - **Your Risk:** Estimated chance of this cancer now.
-    - **After Negative:** Risk if test is negative.
-    - **Risk Reduction:** How much risk drops (absolute points and relative %).
-    - **False Positive Risk:** Chance of wrong positive for this cancer.
-    """)
+with st.expander("Detailed Table"):
     simplified_df = df[["Cancer Type", "Your Risk", "Post-test Risk (if negative)", "Abs Risk Reduction", "Rel Risk Reduction", "False Positive Risk"]]
-    st.dataframe(
-        simplified_df.style.format({
-            "Your Risk": "{:.3f}%",
-            "Post-test Risk (if negative)": "{:.4f}%",
-            "Abs Risk Reduction": "{:.4f}%",
-            "Rel Risk Reduction": "{:.1f}%",
-            "False Positive Risk": "{:.2f}%"
-        })
-    )
+    st.dataframe(simplified_df.style.format({
+        "Your Risk": "{:.3f}%",
+        "Post-test Risk (if negative)": "{:.4f}%",
+        "Abs Risk Reduction": "{:.4f}%",
+        "Rel Risk Reduction": "{:.1f}%",
+        "False Positive Risk": "{:.2f}%"
+    }).background_gradient(cmap='Blues', subset=["Your Risk", "Post-test Risk (if negative)"]))
 
-with st.expander("Risks of Follow-Up Tests"):
-    st.subheader("What If the Test is Positive?")
-    st.markdown("Positive results often lead to more tests. Here's what could happen.")
-
-    risk_data = DOWNSTREAM_RISKS[test_type]
-    expected_biopsies = risk_data['false_positive_rate'] * risk_data['biopsy_rate_fp']
-    expected_comps = expected_biopsies * risk_data['comp_rate_biopsy']
-
-    st.markdown(f"**Chance of False Positive:** {risk_data['false_positive_rate']}% (test says positive, but no cancer)")
-    st.markdown(f"**Chance of Needing a Biopsy:** {expected_biopsies:.2f}% overall")
-    st.markdown(f"**Chance of Complications (e.g., infection):** {expected_comps:.4f}% overall")
-    st.markdown(f"**Typical Next Steps:** {risk_data['typical_followup']}")
-    st.markdown(f"**Other Risks:** {risk_data['psychological_impact']}; {risk_data['radiation_exposure']}")
-
-    fig_risks = go.Figure()
-    risk_types = ['False Positive', 'Biopsy Needed', 'Complications']
-    risk_values = [risk_data['false_positive_rate'], expected_biopsies, expected_comps]
-
-    fig_risks.add_trace(go.Bar(
-        x=risk_types,
-        y=risk_values,
-        marker_color='crimson',
-        text=[f"{v:.2f}%" for v in risk_values],
-        textposition='auto'
+with st.expander("Follow-Up Risks"):
+    fig_risks = go.Figure(go.Bar(
+        x=['False Positive', 'Biopsy', 'Complication'],
+        y=[risk_data['false_positive_rate'], expected_biopsies, expected_comps],
+        marker_color='#e74c3c',
+        text=[f"{v:.2f}%" for v in [risk_data['false_positive_rate'], expected_biopsies, expected_comps]],
+        textposition='outside'
     ))
-
-    fig_risks.update_layout(
-        yaxis_title='Chance (%)',
-        height=300
-    )
-
+    fig_risks.update_layout(height=300, yaxis_title='Chance (%)', plot_bgcolor='white')
     st.plotly_chart(fig_risks, use_container_width=True)
+    st.markdown(f"**Next Steps:** {risk_data['typical_followup']}")
+    st.markdown(f"**Other Notes:** {risk_data['psychological_impact']}; {risk_data['radiation_exposure']}")
