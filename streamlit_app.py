@@ -279,24 +279,17 @@ with st.sidebar:
     family_history = st.multiselect("Family Cancer History", ["Breast cancer", "Colorectal cancer", "Prostate cancer", "Ovarian cancer", "Lung cancer", "Pancreatic cancer"])
     genetic_mutations = st.multiselect("Genetic Mutations", ["BRCA1", "BRCA2", "Lynch syndrome", "TP53 (Li-Fraumeni)"])
     personal_history = st.checkbox("Personal Cancer History")
-    tests = st.multiselect("Screening Tests", list(TEST_PERFORMANCE.keys()), default=["Whole-body MRI"])
-    if len(tests) > 1:
-        mode = st.selectbox("Combination Mode", ["Parallel (Any positive)", "Sequential (All positive)"])
-    else:
-        mode = None
+    tests = st.multiselect("Screening Tests", list(TEST_PERFORMANCE.keys()))
 
 # Calculations
-cancer_types = set()
-for test in tests:
-    cancer_types.update(TEST_PERFORMANCE[test])
-cancer_types = list(cancer_types)
-
+cancer_types = set(CANCER_INCIDENCE.keys())
 risk_multipliers = {ct: get_risk_multiplier(ct, smoking_status, pack_years, family_history, genetic_mutations, personal_history) for ct in cancer_types if not ((ct in ["prostate", "testicular"] and sex == "female") or (ct in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male"))}
 
 overall_prevalence = calculate_overall_prevalence(age, sex, risk_multipliers)
 
 if tests:
     if len(tests) > 1:
+        mode = st.sidebar.selectbox("Combination Mode", ["Parallel (Any positive)", "Sequential (All positive)"])
         sens, spec = combine_tests(tests, mode)
         fp_rate = np.mean([DOWNSTREAM_RISKS[t]["false_positive_rate"] for t in tests]) / 100
         biopsy_rate = np.mean([DOWNSTREAM_RISKS[t]["biopsy_rate_fp"] for t in tests])
@@ -351,7 +344,7 @@ if tests:
                 "#1ABC9C", "#E67E22", "#E74C3C"
             ],
             x = [0, 0.2, 0.2, 0.4, 0.4, 0.6, 0.6, 0.8, 0.8, 0.8],
-            y = [0.5, 0.05, 0.95, 0.0, 0.2, 0.8, 1.0, -0.05, 0.15, 0.35],  # Spread vertically more
+            y = [0.5, 0.05, 0.95, 0.0, 0.25, 0.8, 0.95, -0.1, 0.15, 0.4],  # Further spread vertically to avoid overlap
         ),
         link = dict(
             source = [
