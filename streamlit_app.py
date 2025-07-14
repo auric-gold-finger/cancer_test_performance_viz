@@ -4,31 +4,7 @@ import plotly.graph_objects as go
 import numpy as np
 import math
 
-# Additional CSS for clean look
-st.markdown("""
-<style>
-    .main-header {
-        color: #1f2937 !important;
-        text-align: center;
-        font-weight: 600;
-    }
-    .metric-box {
-        background-color: #f9fafb !important;
-        border-radius: 6px;
-        padding: 12px;
-        margin: 8px 0;
-        border: 1px solid #e5e7eb;
-    }
-    .warning-box {
-        background-color: #fefce8 !important;
-        border: 1px solid #eab308;
-        border-radius: 6px;
-        padding: 16px;
-        margin: 12px 0;
-        color: #92400e !important;
-    }
-</style>
-""", unsafe_allow_html=True)
+
 
 # App config
 st.set_page_config(
@@ -38,54 +14,41 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Force light theme
+# Minimal light theme enforcement
 st.markdown("""
 <style>
-    /* Force light theme */
+    /* Main app background */
     .stApp {
-        background-color: #ffffff !important;
-        color: #1f2937 !important;
+        background-color: #ffffff;
+        color: #1f2937;
     }
     
-    /* Override any dark theme elements */
+    /* Main content area */
     .main .block-container {
-        background-color: #ffffff !important;
-        color: #1f2937 !important;
+        background-color: #ffffff;
+        color: #1f2937;
     }
     
-    /* Sidebar styling */
-    .css-1d391kg {
-        background-color: #f9fafb !important;
+    /* Custom styling */
+    .main-header {
+        color: #1f2937;
+        text-align: center;
+        font-weight: 600;
     }
-    
-    /* Metric containers */
-    [data-testid="metric-container"] {
-        background-color: #ffffff !important;
-        border: 1px solid #e5e7eb !important;
-        border-radius: 6px !important;
-        padding: 12px !important;
+    .metric-box {
+        background-color: #f9fafb;
+        border-radius: 6px;
+        padding: 12px;
+        margin: 8px 0;
+        border: 1px solid #e5e7eb;
     }
-    
-    /* Text elements */
-    .stMarkdown, .stText, p, h1, h2, h3, h4, h5, h6 {
-        color: #1f2937 !important;
-    }
-    
-    /* Input elements */
-    .stSelectbox > div > div, .stSlider > div, .stMultiSelect > div > div {
-        background-color: #ffffff !important;
-        color: #1f2937 !important;
-    }
-    
-    /* Expander styling */
-    .streamlit-expanderHeader {
-        background-color: #f9fafb !important;
-        color: #1f2937 !important;
-    }
-    
-    .streamlit-expanderContent {
-        background-color: #ffffff !important;
-        color: #1f2937 !important;
+    .warning-box {
+        background-color: #fefce8;
+        border: 1px solid #eab308;
+        border-radius: 6px;
+        padding: 16px;
+        margin: 12px 0;
+        color: #92400e;
     }
 </style>
 """, unsafe_allow_html=True)
