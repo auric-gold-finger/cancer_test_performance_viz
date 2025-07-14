@@ -28,9 +28,9 @@ st.markdown("""
 st.set_page_config(page_title="Cancer Screening Outcomes", page_icon="📊", layout="wide")
 
 st.markdown("<h1 class='main-header'>Cancer Screening Outcomes Visualizer</h1>", unsafe_allow_html=True)
-st.markdown("Enter your details to see a personalized Sankey diagram of screening test outcomes for 100 people like you. Data as of July 2025. For education only—consult a doctor.")
+st.markdown("Enter your details to see a personalized Sankey diagram of screening test outcomes for 100 or 1000 people like you. Data as of July 2025. For education only—consult a doctor.")
 
-# Data structures
+# Data structures (unchanged)
 CANCER_INCIDENCE = {
     "lung": {"male": {40: 10, 50: 30, 60: 95, 70: 195, 80: 235}, "female": {40: 15, 50: 38, 60: 80, 70: 145, 80: 175}},
     "breast": {"male": {40: 1, 50: 2, 60: 3, 70: 4, 80: 5}, "female": {40: 48, 50: 130, 60: 200, 70: 250, 80: 275}},
@@ -158,7 +158,7 @@ DOWNSTREAM_RISKS = {
     "Skin Exam": {"false_positive_rate": 11.0, "biopsy_rate_fp": 0.2, "comp_rate_biopsy": 0.005, "psychological_impact": "Low", "radiation_exposure": "None"}
 }
 
-# Functions
+# Functions (unchanged)
 def interpolate_incidence(age, sex, cancer_type):
     if cancer_type not in CANCER_INCIDENCE:
         return 0
@@ -208,7 +208,7 @@ def get_risk_multiplier(cancer_type, smoking_status, pack_years, family_history,
     }
     family_cancer = cancer_family_map.get(cancer_type)
     if family_cancer in family_history:
-        age_diag = family_ages.get(family_cancer, 60)  # Default to 60 if not specified
+        age_diag = family_ages.get(family_cancer, 60)
         if cancer_type == "colorectal":
             if age_diag < 60:
                 multiplier *= 3.5
@@ -219,7 +219,6 @@ def get_risk_multiplier(cancer_type, smoking_status, pack_years, family_history,
                 multiplier *= 3.0
             else:
                 multiplier *= 2.3
-        # Similar logic for other cancers, approximating
         elif cancer_type == "prostate":
             multiplier *= 2.5
         elif cancer_type == "ovarian":
@@ -258,7 +257,7 @@ def calculate_overall_prevalence(age, sex, risk_multipliers=None):
         if (cancer_type in ["prostate", "testicular"] and sex == "female") or (cancer_type in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male"):
             continue
         incidence_rate = interpolate_incidence(age, sex, cancer_type)
-        prevalence = (incidence_rate / 100000) * 10  # 10-year risk for screening context
+        prevalence = (incidence_rate / 100000) * 10
         if risk_multipliers and cancer_type in risk_multipliers:
             prevalence *= risk_multipliers[cancer_type]
         total_prevalence += prevalence
@@ -270,7 +269,7 @@ def calculate_per_cancer_prevalence(age, sex, risk_multipliers=None):
         if (cancer_type in ["prostate", "testicular"] and sex == "female") or (cancer_type in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male"):
             continue
         incidence_rate = interpolate_incidence(age, sex, cancer_type)
-        prevalence = (incidence_rate / 100000) * 10  # 10-year risk
+        prevalence = (incidence_rate / 100000) * 10
         if risk_multipliers and cancer_type in risk_multipliers:
             prevalence *= risk_multipliers[cancer_type]
         results.append({"Cancer Type": cancer_type.replace("_", " ").title(), "Personalized Risk (%)": prevalence * 100})
@@ -313,6 +312,20 @@ risk_multipliers = {ct: get_risk_multiplier(ct, smoking_status, pack_years, fami
 
 overall_prevalence = calculate_overall_prevalence(age, sex, risk_multipliers)
 
+# Dynamic y-position calculation function
+def calculate_y_positions(values, total_height=0.9, min_spacing=0.05):
+    """Calculate y-positions for Sankey nodes to avoid overlap, proportional to values."""
+    total_value = sum(values)
+    if total_value == 0:
+        return [0.5] * len(values)  # Fallback for zero values
+    normalized = [v / total_value for v in values]
+    y_positions = []
+    current_y = 0.05  # Start near top
+    for norm in normalized:
+        y_positions.append(current_y + norm * total_height / 2)
+        current_y += norm * total_height + min_spacing
+    return y_positions
+
 if tests:
     if len(tests) > 1:
         mode = st.sidebar.selectbox("Combination Mode", ["Parallel (Any positive)", "Sequential (All positive)"])
@@ -345,59 +358,74 @@ if tests:
     complication = biopsy * comp_rate
     no_complication = biopsy - complication
 
-    cancer_treated = tp * 0.8  # Assume 80% of TP lead to treatment
-    benign = tp * 0.2 + fp  # Rest benign + all FP
-    further_monitor = fn  # FN to monitoring
+    cancer_treated = tp * 0.8
+    benign = tp * 0.2 + fp
+    further_monitor = fn
     reassured = tn
 
-    # Sankey Diagram with labels showing numbers
+    # Calculate dynamic y-positions for each stage
+    stage1_values = [positive, negative]
+    stage1_y = calculate_y_positions(stage1_values)
+    stage2_values = [biopsy, no_biopsy, reassured, further_monitor]
+    stage2_y = calculate_y_positions(stage2_values)
+    stage3_values = [cancer_treated, benign, complication]
+    stage3_y = calculate_y_positions(stage3_values)
+
+    # Sankey Diagram with dynamic y-positions
     fig = go.Figure(data=[go.Sankey(
-        orientation = 'h',
-        node = dict(
-            pad = 20,
-            thickness = 30,
-            line = dict(color = "gray", width = 0.5),
-            label = [
-                f"{population} People", 
-                f"Test Positive ({positive:.1f})", f"Test Negative ({negative:.1f})", 
-                f"Follow-up Biopsy ({biopsy:.1f})", f"No Biopsy Needed ({no_biopsy:.1f})", f"Reassured ({reassured:.1f})", f"Further Monitoring ({further_monitor:.1f})", 
-                f"Cancer Found & Treated ({cancer_treated:.1f})", f"Benign (False Alarm) ({benign:.1f})", f"Complication from Biopsy ({complication:.1f})"
+        orientation='h',
+        node=dict(
+            pad=20,
+            thickness=30,
+            line=dict(color="gray", width=0.5),
+            label=[
+                f"{population} People",
+                f"Test Positive ({positive:.1f})", f"Test Negative ({negative:.1f})",
+                f"Follow-up Biopsy ({biopsy:.1f})", f"No Biopsy Needed ({no_biopsy:.1f})",
+                f"Reassured ({reassured:.1f})", f"Further Monitoring ({further_monitor:.1f})",
+                f"Cancer Found & Treated ({cancer_treated:.1f})", f"Benign (False Alarm) ({benign:.1f})",
+                f"Complication from Biopsy ({complication:.1f})"
             ],
-            color = [
+            color=[
                 "#AED6F1", "#F39C12", "#BDC3C7",
                 "#8E44AD", "#95A5A6", "#2ECC71", "#3498DB",
                 "#1ABC9C", "#E67E22", "#E74C3C"
             ],
-            x = [0, 0.2, 0.2, 0.4, 0.4, 0.6, 0.6, 0.8, 0.8, 0.8],
-            y = [0.5, 0.05, 0.95, 0.0, 0.25, 0.8, 0.95, -0.05, 0.15, 0.35],  # Adjusted y to spread vertically and reduce overlap
-        ),
-        link = dict(
-            source = [
-                0, 0, 
-                1, 1, 
-                2, 2, 
-                3, 3, 3, 
-                4 
+            x=[0, 0.2, 0.2, 0.4, 0.4, 0.6, 0.6, 0.8, 0.8, 0.8],
+            y=[
+                0.5,  # Root node centered
+                stage1_y[0], stage1_y[1],
+                stage2_y[0], stage2_y[1], stage2_y[2], stage2_y[3],
+                stage3_y[0], stage3_y[1], stage3_y[2]
             ],
-            target = [
+        ),
+        link=dict(
+            source=[
+                0, 0,
+                1, 1,
+                2, 2,
+                3, 3, 3,
+                4
+            ],
+            target=[
                 1, 2,
                 3, 4,
                 5, 6,
                 7, 8, 9,
-                8 
+                8
             ],
-            value = [
+            value=[
                 positive, negative,
                 biopsy, no_biopsy,
                 reassured, further_monitor,
                 cancer_treated, benign, complication,
-                no_biopsy 
+                no_biopsy
             ],
-            color = 'rgba(189, 195, 199, 0.5)',
-            hovercolor = 'blue',
-            label = [f"{v:.1f}" for v in [positive, negative, biopsy, no_biopsy, reassured, further_monitor, cancer_treated, benign, complication, no_biopsy]]  
+            color='rgba(189, 195, 199, 0.5)',
+            hovercolor='blue',
+            label=[f"{v:.1f}" for v in [positive, negative, biopsy, no_biopsy, reassured, further_monitor, cancer_treated, benign, complication, no_biopsy]]
         ),
-        textfont = dict(size=14, color="black")
+        textfont=dict(size=14, color="black")
     )])
 
     fig.update_layout(
@@ -420,36 +448,38 @@ if tests:
     st.markdown("</div>", unsafe_allow_html=True)
 else:
     # No tests selected - Baseline risk Sankey
-    population = 100
     has_cancer = overall_prevalence * population
     no_cancer = population - has_cancer
 
+    # Calculate dynamic y-positions
+    baseline_y = calculate_y_positions([has_cancer, no_cancer])
+
     # Simple Sankey for baseline
     fig = go.Figure(data=[go.Sankey(
-        orientation = 'h',
-        node = dict(
-            pad = 20,
-            thickness = 30,
-            line = dict(color = "gray", width = 0.5),
-            label = [
-                f"{population} People", 
+        orientation='h',
+        node=dict(
+            pad=20,
+            thickness=30,
+            line=dict(color="gray", width=0.5),
+            label=[
+                f"{population} People",
                 f"Has Cancer (Undetected) ({has_cancer:.1f})", f"No Cancer ({no_cancer:.1f})"
             ],
-            color = [
+            color=[
                 "#AED6F1", "#E74C3C", "#2ECC71"
             ],
-            x = [0, 0.4, 0.4],
-            y = [0.5, 0.3, 0.7],
+            x=[0, 0.4, 0.4],
+            y=[0.5, baseline_y[0], baseline_y[1]],
         ),
-        link = dict(
-            source = [0, 0],
-            target = [1, 2],
-            value = [has_cancer, no_cancer],
-            color = 'rgba(189, 195, 199, 0.5)',
-            hovercolor = 'blue',
-            label = [f"{has_cancer:.1f}", f"{no_cancer:.1f}"]
+        link=dict(
+            source=[0, 0],
+            target=[1, 2],
+            value=[has_cancer, no_cancer],
+            color='rgba(189, 195, 199, 0.5)',
+            hovercolor='blue',
+            label=[f"{has_cancer:.1f}", f"{no_cancer:.1f}"]
         ),
-        textfont = dict(size=14, color="black")
+        textfont=dict(size=14, color="black")
     )])
 
     fig.update_layout(
