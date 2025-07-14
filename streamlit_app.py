@@ -845,7 +845,7 @@ if not errors:  # Only proceed if no validation errors
                 font=dict(size=10)
             )
             
-            fig_individual.update_xaxis(tickangle=45)
+            fig_individual.update_layout(xaxis_tickangle=45)
             
             st.plotly_chart(fig_individual, use_container_width=True)
         
