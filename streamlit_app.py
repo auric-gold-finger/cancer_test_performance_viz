@@ -44,7 +44,7 @@ st.markdown("""
 
 st.markdown("Enter your details to see a personalized Sankey diagram of screening test outcomes for 100 or 1000 people like you. Data as of July 2025.")
 
-# Data structures (unchanged from original)
+# Data structures
 CANCER_INCIDENCE = {
     "lung": {"male": {40: 10, 50: 30, 60: 95, 70: 195, 80: 235}, "female": {40: 15, 50: 38, 60: 80, 70: 145, 80: 175}},
     "breast": {"male": {40: 1, 50: 2, 60: 3, 70: 4, 80: 5}, "female": {40: 48, 50: 130, 60: 200, 70: 250, 80: 275}},
@@ -182,6 +182,9 @@ def interpolate_incidence(age, sex, cancer_type):
     if cancer_type not in CANCER_INCIDENCE:
         return 0
     
+    if sex not in CANCER_INCIDENCE[cancer_type]:
+        return 0
+    
     age_points = list(CANCER_INCIDENCE[cancer_type][sex].keys())
     incidence_points = list(CANCER_INCIDENCE[cancer_type][sex].values())
     
@@ -206,24 +209,24 @@ def get_risk_multiplier_fixed(cancer_type, smoking_status, pack_years, family_hi
             elif pack_years < 40:
                 risk_factors.append(math.log(15))  # 15x
             else:
-                risk_factors.append(math.log(20))  # 20x (reduced from 35x)
+                risk_factors.append(math.log(20))  # 20x
         elif cancer_type in ["bladder", "kidney", "pancreatic", "cervical", "esophageal", "gastric", "head_neck"]:
-            risk_factors.append(math.log(2.0))  # 2x (reduced from 2.5x)
+            risk_factors.append(math.log(2.0))  # 2x
         elif cancer_type in ["colorectal", "liver"]:
-            risk_factors.append(math.log(1.6))  # 1.6x (reduced from 1.8x)
+            risk_factors.append(math.log(1.6))  # 1.6x
     
     elif smoking_status == "Former smoker":
         if cancer_type == "lung":
             if pack_years < 20:
-                risk_factors.append(math.log(5))   # 5x (reduced from 8x)
+                risk_factors.append(math.log(5))   # 5x
             elif pack_years < 40:
-                risk_factors.append(math.log(8))   # 8x (reduced from 12x)
+                risk_factors.append(math.log(8))   # 8x
             else:
-                risk_factors.append(math.log(12))  # 12x (reduced from 18x)
+                risk_factors.append(math.log(12))  # 12x
         elif cancer_type in ["bladder", "kidney", "pancreatic", "cervical", "esophageal", "gastric", "head_neck"]:
-            risk_factors.append(math.log(1.5))  # 1.5x (reduced from 1.8x)
+            risk_factors.append(math.log(1.5))  # 1.5x
         elif cancer_type in ["colorectal", "liver"]:
-            risk_factors.append(math.log(1.3))  # 1.3x (reduced from 1.4x)
+            risk_factors.append(math.log(1.3))  # 1.3x
     
     # Family history with diminishing returns
     cancer_family_map = {
@@ -236,60 +239,62 @@ def get_risk_multiplier_fixed(cancer_type, smoking_status, pack_years, family_hi
     }
     
     family_cancer = cancer_family_map.get(cancer_type)
-    if family_cancer in family_history:
-        min_age = min(family_ages.get(family_cancer, [60])) if family_ages.get(family_cancer) else 60
-        family_count = len(family_ages.get(family_cancer, []))
-        
-        # Base family history multiplier (reduced from original)
-        if cancer_type == "colorectal":
-            base_multiplier = 2.5 if min_age < 60 else 1.8  # Reduced from 3.5/2.2
-        elif cancer_type == "breast":
-            base_multiplier = 2.2 if min_age < 50 else 1.8  # Reduced from 3.0/2.3
-        elif cancer_type == "prostate":
-            base_multiplier = 2.0  # Reduced from 2.5
-        elif cancer_type == "ovarian":
-            base_multiplier = 2.5  # Reduced from 3.1
-        elif cancer_type in ["lung", "pancreatic"]:
-            base_multiplier = 1.5  # Reduced from 1.8
-        else:
-            base_multiplier = 1.3
-        
-        # Diminishing returns for multiple relatives
-        family_factor = 1.0 + 0.2 * min(family_count - 1, 2)  # Max 1.4x for multiple relatives
-        
-        total_family_multiplier = base_multiplier * family_factor
-        risk_factors.append(math.log(total_family_multiplier))
+    if family_cancer and family_cancer in family_history:
+        family_ages_list = family_ages.get(family_cancer, [60])
+        if family_ages_list:  # Check if list is not empty
+            min_age = min(family_ages_list)
+            family_count = len(family_ages_list)
+            
+            # Base family history multiplier
+            if cancer_type == "colorectal":
+                base_multiplier = 2.5 if min_age < 60 else 1.8
+            elif cancer_type == "breast":
+                base_multiplier = 2.2 if min_age < 50 else 1.8
+            elif cancer_type == "prostate":
+                base_multiplier = 2.0
+            elif cancer_type == "ovarian":
+                base_multiplier = 2.5
+            elif cancer_type in ["lung", "pancreatic"]:
+                base_multiplier = 1.5
+            else:
+                base_multiplier = 1.3
+            
+            # Diminishing returns for multiple relatives
+            family_factor = 1.0 + 0.2 * min(family_count - 1, 2)  # Max 1.4x for multiple relatives
+            
+            total_family_multiplier = base_multiplier * family_factor
+            risk_factors.append(math.log(total_family_multiplier))
     
-    # Genetic mutations (significantly reduced)
+    # Genetic mutations
     if "BRCA1" in genetic_mutations:
         if cancer_type == "breast":
-            risk_factors.append(math.log(8))   # 8x (reduced from 35x)
+            risk_factors.append(math.log(8))   # 8x
         elif cancer_type == "ovarian":
-            risk_factors.append(math.log(6))   # 6x (reduced from 20x)
+            risk_factors.append(math.log(6))   # 6x
     
     if "BRCA2" in genetic_mutations:
         if cancer_type == "breast":
-            risk_factors.append(math.log(5))   # 5x (reduced from 20x)
+            risk_factors.append(math.log(5))   # 5x
         elif cancer_type == "ovarian":
-            risk_factors.append(math.log(3))   # 3x (reduced from 8x)
+            risk_factors.append(math.log(3))   # 3x
         elif cancer_type == "prostate":
-            risk_factors.append(math.log(3))   # 3x (reduced from 4.5x)
+            risk_factors.append(math.log(3))   # 3x
     
     if "Lynch syndrome" in genetic_mutations:
         if cancer_type == "colorectal":
-            risk_factors.append(math.log(6))   # 6x (reduced from 15x)
+            risk_factors.append(math.log(6))   # 6x
         elif cancer_type == "ovarian":
-            risk_factors.append(math.log(3))   # 3x (reduced from 6x)
+            risk_factors.append(math.log(3))   # 3x
         elif cancer_type == "endometrial":
-            risk_factors.append(math.log(5))   # 5x (reduced from 12x)
+            risk_factors.append(math.log(5))   # 5x
     
     if "TP53 (Li-Fraumeni)" in genetic_mutations:
         if cancer_type in ["breast", "lung", "colorectal", "liver", "brain", "sarcoma"]:
-            risk_factors.append(math.log(4))   # 4x (reduced from 10x)
+            risk_factors.append(math.log(4))   # 4x
     
     # Personal history
     if personal_history:
-        risk_factors.append(math.log(2.0))  # 2x (reduced from 2.5x)
+        risk_factors.append(math.log(2.0))  # 2x
     
     # Combine on log scale and convert back
     if not risk_factors:
@@ -298,7 +303,7 @@ def get_risk_multiplier_fixed(cancer_type, smoking_status, pack_years, family_hi
     total_log_risk = sum(risk_factors)
     final_multiplier = math.exp(total_log_risk)
     
-    # Cap at 25x maximum (much more reasonable)
+    # Cap at 25x maximum
     return min(final_multiplier, 25.0)
 
 def calculate_overall_prevalence_fixed(age, sex, risk_multipliers=None):
@@ -320,13 +325,12 @@ def calculate_overall_prevalence_fixed(age, sex, risk_multipliers=None):
         if risk_multipliers and cancer_type in risk_multipliers:
             prevalence *= risk_multipliers[cancer_type]
         
-        # Cap individual cancer risk at 60% (very high but realistic)
+        # Cap individual cancer risk at 60%
         prevalence = min(prevalence, 0.60)
         cancer_probabilities.append(prevalence)
         individual_risks[cancer_type] = prevalence
     
     # Use proper probability combination for independent events
-    # P(any cancer) = 1 - P(no cancer) = 1 - ∏(1 - P(cancer_i))
     prob_no_cancer = 1.0
     for prob in cancer_probabilities:
         prob_no_cancer *= (1 - prob)
@@ -345,18 +349,18 @@ def calculate_per_cancer_prevalence_fixed(age, sex, risk_multipliers=None):
             continue
             
         incidence_rate = interpolate_incidence(age, sex, cancer_type)
-        prevalence = (incidence_rate / 100000) * 10
+        base_prevalence = (incidence_rate / 100000) * 10
         
-        if risk_multipliers and cancer_type in risk_multipliers:
-            prevalence *= risk_multipliers[cancer_type]
+        multiplier = risk_multipliers.get(cancer_type, 1.0) if risk_multipliers else 1.0
+        prevalence = base_prevalence * multiplier
         
         # Cap individual risk
         prevalence = min(prevalence, 0.60)
         
         results.append({
             "Cancer Type": cancer_type.replace("_", " ").title(), 
-            "Base Risk (%)": (incidence_rate / 100000) * 10 * 100,
-            "Risk Multiplier": risk_multipliers.get(cancer_type, 1.0) if risk_multipliers else 1.0,
+            "Base Risk (%)": base_prevalence * 100,
+            "Risk Multiplier": multiplier,
             "Personalized Risk (%)": prevalence * 100
         })
     
@@ -365,25 +369,39 @@ def calculate_per_cancer_prevalence_fixed(age, sex, risk_multipliers=None):
 def combine_tests(tests, mode, age, sex, risk_multipliers):
     """Combine multiple tests with proper probability handling"""
     cancer_outcomes = {}
+    
+    # Get all applicable cancer types for this person
+    applicable_cancers = []
     for cancer_type in CANCER_INCIDENCE.keys():
-        if ((cancer_type in ["prostate", "testicular"] and sex == "female") or 
-            (cancer_type in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male")):
-            continue
-            
+        if not ((cancer_type in ["prostate", "testicular"] and sex == "female") or 
+                (cancer_type in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male")):
+            applicable_cancers.append(cancer_type)
+    
+    for cancer_type in applicable_cancers:
         sens_combined = 0 if mode == "Parallel" else 1
         spec_combined = 1 if mode == "Parallel" else 0
         
+        # Check if any of the selected tests can detect this cancer
+        applicable_tests = []
         for test in tests:
-            if cancer_type in TEST_PERFORMANCE.get(test, {}):
+            if test in TEST_PERFORMANCE and cancer_type in TEST_PERFORMANCE[test]:
+                applicable_tests.append(test)
+        
+        if applicable_tests:  # Only process if we have applicable tests
+            for test in applicable_tests:
                 sens = TEST_PERFORMANCE[test][cancer_type]["sensitivity"]
                 spec = TEST_PERFORMANCE[test][cancer_type]["specificity"]
                 
                 if mode == "Parallel":
                     sens_combined = 1 - (1 - sens_combined) * (1 - sens)
                     spec_combined *= spec
-                else:
+                else:  # Sequential
                     sens_combined *= sens
                     spec_combined = 1 - (1 - spec_combined) * (1 - spec)
+        else:
+            # If no tests can detect this cancer, set to no detection
+            sens_combined = 0
+            spec_combined = 1
         
         incidence_rate = interpolate_incidence(age, sex, cancer_type)
         prevalence = (incidence_rate / 100000) * 10
@@ -398,69 +416,17 @@ def combine_tests(tests, mode, age, sex, risk_multipliers):
             "prevalence": prevalence
         }
 
-    # Aggregate outcomes
-    overall_sens = np.mean([co["sensitivity"] for co in cancer_outcomes.values()])
-    overall_spec = np.mean([co["specificity"] for co in cancer_outcomes.values()])
+    # Calculate aggregate outcomes only for cancers that can be detected
+    detectable_outcomes = {k: v for k, v in cancer_outcomes.items() if v["sensitivity"] > 0}
+    
+    if detectable_outcomes:
+        overall_sens = np.mean([co["sensitivity"] for co in detectable_outcomes.values()])
+        overall_spec = np.mean([co["specificity"] for co in detectable_outcomes.values()])
+    else:
+        overall_sens = 0
+        overall_spec = 1
+    
     return overall_sens, overall_spec, cancer_outcomes
-
-def calculate_y_positions(values, total_height=0.8, min_spacing=0.02):
-    """Calculate y-positions for Sankey nodes to avoid overlap with better spacing"""
-    total_value = sum(values)
-    if total_value == 0:
-        return [0.5] * len(values)
-    
-    # Calculate proportional heights
-    proportions = [v / total_value for v in values]
-    
-    # Calculate actual heights considering minimum spacing
-    available_height = total_height - (len(values) - 1) * min_spacing
-    heights = [p * available_height for p in proportions]
-    
-    # Calculate y-positions (centers of each node)
-    y_positions = []
-    current_y = 0.1  # Start higher from bottom
-    
-    for height in heights:
-        y_positions.append(current_y + height / 2)
-        current_y += height + min_spacing
-    
-    return y_positions
-
-def create_comparison_chart(population, has_cancer_baseline, has_cancer_with_screening, 
-                          cancers_detected, cancers_missed, false_positives, complications):
-    """Create a comparison chart showing screening vs no screening outcomes"""
-    
-    fig = go.Figure()
-    
-    # Baseline (no screening)
-    fig.add_trace(go.Bar(
-        name='No Screening',
-        x=['Cancers', 'Detected', 'Missed', 'False Alarms', 'Complications'],
-        y=[has_cancer_baseline, 0, has_cancer_baseline, 0, 0],
-        marker_color='#FF6B6B',
-        hovertemplate='No Screening<br>%{y:.1f} people<extra></extra>'
-    ))
-    
-    # With screening
-    fig.add_trace(go.Bar(
-        name='With Screening',
-        x=['Cancers', 'Detected', 'Missed', 'False Alarms', 'Complications'],
-        y=[has_cancer_baseline, cancers_detected, cancers_missed, false_positives, complications],
-        marker_color='#51CF66',
-        hovertemplate='With Screening<br>%{y:.1f} people<extra></extra>'
-    ))
-    
-    fig.update_layout(
-        title=f'Screening Impact Comparison (per {population} people)',
-        xaxis_title='Outcome Category',
-        yaxis_title='Number of People',
-        barmode='group',
-        height=400,
-        showlegend=True,
-        margin=dict(l=50, r=50, t=80, b=50)
-    )
-    
-    return fig
 
 def validate_inputs(age, smoking_status, pack_years, family_ages):
     """Validate user inputs and return error messages"""
@@ -483,6 +449,104 @@ def validate_inputs(age, smoking_status, pack_years, family_ages):
                 errors.append(f"Invalid age {age_val} for {cancer}. Ages should be between 20-100.")
     
     return errors, warnings
+
+def create_sankey_diagram(population, overall_prevalence, sens, spec, adjusted_biopsy_rate, comp_rate):
+    """Create the Sankey diagram with fixed positioning"""
+    
+    # Calculate outcomes
+    has_cancer = overall_prevalence * population
+    no_cancer = population - has_cancer
+
+    tp = sens * has_cancer  # True positives
+    fn = (1 - sens) * has_cancer  # False negatives
+    fp = (1 - spec) * no_cancer  # False positives
+    tn = spec * no_cancer  # True negatives
+
+    positive = tp + fp  # Total positive tests
+    negative = fn + tn  # Total negative tests
+
+    biopsy = positive * adjusted_biopsy_rate
+    no_biopsy = positive - biopsy
+    complication = biopsy * comp_rate
+    no_complication = biopsy - complication
+
+    cancer_treated = tp * 0.8  # Assume 80% of detected cancers are successfully treated
+    benign = tp * 0.2 + fp  # Benign findings include some true positives + false positives
+    further_monitor = fn  # False negatives need further monitoring
+    reassured = tn  # True negatives are reassured
+
+    # Create Sankey diagram with fixed positioning
+    fig = go.Figure(data=[go.Sankey(
+        orientation='h',
+        arrangement='snap',
+        node=dict(
+            pad=8,
+            thickness=12,
+            line=dict(color="gray", width=0.3),
+            label=[
+                f"{population} Screened",                 # 0
+                f"Positive ({positive:.1f})",            # 1
+                f"Negative ({negative:.1f})",            # 2
+                f"Biopsy ({biopsy:.1f})",               # 3
+                f"No Biopsy ({no_biopsy:.1f})",         # 4
+                f"Reassured ({reassured:.1f})",         # 5
+                f"Monitor ({further_monitor:.1f})",      # 6
+                f"Cancer Found ({cancer_treated:.1f})",  # 7
+                f"Benign ({benign:.1f})",               # 8
+                f"Complication ({complication:.1f})"     # 9
+            ],
+            color=[
+                "#2E86AB",  # Blue
+                "#E74C3C", "#27AE60",  # Red/Green
+                "#F39C12", "#3498DB", "#9B59B6", "#E67E22",  # Various
+                "#1ABC9C", "#F1C40F", "#E74C3C"  # Teal/Yellow/Red
+            ],
+            x=[0.12, 0.31, 0.39, 0.61, 0.69, 0.61, 0.69, 0.88, 0.88, 0.88],
+            y=[0.5, 0.3, 0.7, 0.2, 0.4, 0.8, 0.9, 0.25, 0.55, 0.4],
+        ),
+        link=dict(
+            source=[0, 0, 1, 1, 2, 2, 3, 3, 3, 4],
+            target=[1, 2, 3, 4, 5, 6, 7, 8, 9, 8],
+            value=[positive, negative, biopsy, no_biopsy, reassured, further_monitor, 
+                   cancer_treated, benign, complication, no_biopsy],
+            color=[
+                'rgba(231, 76, 60, 0.4)', 'rgba(39, 174, 96, 0.4)', 
+                'rgba(243, 156, 18, 0.4)', 'rgba(52, 152, 219, 0.4)',
+                'rgba(155, 89, 182, 0.4)', 'rgba(230, 126, 34, 0.4)',
+                'rgba(26, 188, 156, 0.4)', 'rgba(241, 196, 15, 0.4)',
+                'rgba(231, 76, 60, 0.4)', 'rgba(241, 196, 15, 0.4)'
+            ],
+            hovertemplate='<b>%{source.label}</b> → <b>%{target.label}</b><br>' +
+                         'Count: %{value:.1f} people<br><extra></extra>'
+        ),
+        textfont=dict(size=8, color="black", family="Arial"),
+        domain=dict(x=[0.02, 0.98], y=[0.15, 0.85])
+    )])
+
+    fig.update_layout(
+        title=dict(
+            text=f"Screening Process Flow for {population} People Like You",
+            x=0.5,
+            font=dict(size=13, family="Arial")
+        ),
+        font=dict(size=8, family="Arial"),
+        height=420,
+        margin=dict(l=25, r=25, t=70, b=25),
+        showlegend=False,
+        plot_bgcolor='white',
+        annotations=[
+            dict(x=0.12, y=0.95, text="<b>Screening</b>", showarrow=False, 
+                 font=dict(size=10, color="#34495e", family="Arial"), xref="paper", yref="paper"),
+            dict(x=0.35, y=0.95, text="<b>Test Results</b>", showarrow=False,
+                 font=dict(size=10, color="#34495e", family="Arial"), xref="paper", yref="paper"),
+            dict(x=0.65, y=0.95, text="<b>Follow-up</b>", showarrow=False,
+                 font=dict(size=10, color="#34495e", family="Arial"), xref="paper", yref="paper"),
+            dict(x=0.88, y=0.95, text="<b>Outcomes</b>", showarrow=False,
+                 font=dict(size=10, color="#34495e", family="Arial"), xref="paper", yref="paper")
+        ]
+    )
+    
+    return fig
 
 # ============================================================================
 # STREAMLIT UI
@@ -518,7 +582,14 @@ with st.sidebar:
             help="Enter ages when family members were diagnosed, separated by commas"
         )
         try:
-            family_ages[fh] = [int(x.strip()) for x in ages_input.split(",") if x.strip().isdigit()]
+            ages_list = []
+            for x in ages_input.split(","):
+                x = x.strip()
+                if x and x.replace('.', '').isdigit():
+                    age_val = int(float(x))
+                    if 20 <= age_val <= 100:
+                        ages_list.append(age_val)
+            family_ages[fh] = ages_list if ages_list else [60]
         except:
             family_ages[fh] = [60]  # Default fallback
     
@@ -630,26 +701,75 @@ if not errors:  # Only proceed if no validation errors
                 ["Parallel (Any positive)", "Sequential (All positive)"],
                 help="Parallel: positive if ANY test is positive. Sequential: positive only if ALL tests are positive."
             )
-            sens, spec, cancer_outcomes = combine_tests(tests, mode, age, sex, risk_multipliers)
+            mode_short = mode.split()[0]  # Extract "Parallel" or "Sequential"
+            sens, spec, cancer_outcomes = combine_tests(tests, mode_short, age, sex, risk_multipliers)
             
             # Calculate combined downstream risks
-            fp_rate = np.mean([DOWNSTREAM_RISKS[t]["false_positive_rate"] for t in tests]) / 100
-            biopsy_rates = [DOWNSTREAM_RISKS[t]["biopsy_rate_fp"] for t in tests]
-            base_biopsy_rate = np.mean(biopsy_rates)
-            adjusted_biopsy_rate = max(0.1, min(0.9, base_biopsy_rate * (1 - spec)))
-            comp_rate = np.mean([DOWNSTREAM_RISKS[t]["comp_rate_biopsy"] for t in tests])
+            fp_rates = []
+            biopsy_rates = []
+            comp_rates = []
+            
+            for t in tests:
+                if t in DOWNSTREAM_RISKS:
+                    fp_rates.append(DOWNSTREAM_RISKS[t]["false_positive_rate"])
+                    biopsy_rates.append(DOWNSTREAM_RISKS[t]["biopsy_rate_fp"])
+                    comp_rates.append(DOWNSTREAM_RISKS[t]["comp_rate_biopsy"])
+            
+            if fp_rates:  # Only calculate if we have data
+                fp_rate = np.mean(fp_rates) / 100
+                base_biopsy_rate = np.mean(biopsy_rates)
+                comp_rate = np.mean(comp_rates)
+            else:
+                fp_rate = 0.05  # Default 5%
+                base_biopsy_rate = 0.5
+                comp_rate = 0.02
+            
+            adjusted_biopsy_rate = max(0.1, min(0.9, base_biopsy_rate))
             
         else:
             test = tests[0]
-            sens = np.mean([TEST_PERFORMANCE[test].get(ct, {"sensitivity": 0})["sensitivity"] 
-                          for ct in cancer_types if ct in TEST_PERFORMANCE[test]])
-            spec = np.mean([TEST_PERFORMANCE[test].get(ct, {"specificity": 1})["specificity"] 
-                          for ct in cancer_types if ct in TEST_PERFORMANCE[test]])
-            fp_rate = DOWNSTREAM_RISKS[test]["false_positive_rate"] / 100
-            adjusted_biopsy_rate = DOWNSTREAM_RISKS[test]["biopsy_rate_fp"]
-            comp_rate = DOWNSTREAM_RISKS[test]["comp_rate_biopsy"]
+            
+            # Get all cancer types this test can detect
+            detectable_cancers = []
+            for cancer_type in cancer_types:
+                if not ((cancer_type in ["prostate", "testicular"] and sex == "female") or 
+                        (cancer_type in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male")):
+                    if cancer_type in TEST_PERFORMANCE.get(test, {}):
+                        detectable_cancers.append(cancer_type)
+            
+            if detectable_cancers:
+                sens = np.mean([TEST_PERFORMANCE[test][ct]["sensitivity"] for ct in detectable_cancers])
+                spec = np.mean([TEST_PERFORMANCE[test][ct]["specificity"] for ct in detectable_cancers])
+            else:
+                sens = 0
+                spec = 1
+            
+            if test in DOWNSTREAM_RISKS:
+                fp_rate = DOWNSTREAM_RISKS[test]["false_positive_rate"] / 100
+                adjusted_biopsy_rate = DOWNSTREAM_RISKS[test]["biopsy_rate_fp"]
+                comp_rate = DOWNSTREAM_RISKS[test]["comp_rate_biopsy"]
+            else:
+                fp_rate = 0.05
+                adjusted_biopsy_rate = 0.5
+                comp_rate = 0.02
 
-        # Calculate outcomes for the population
+        # Create and display Sankey diagram
+        st.subheader("Patient Flow Diagram")
+        
+        if sens > 0 or spec < 1:  # Only show if test has some effect
+            fig = create_sankey_diagram(population, overall_prevalence, sens, spec, adjusted_biopsy_rate, comp_rate)
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Add interpretation guide
+            st.markdown("""
+            **💡 How to read this diagram:** 
+            Follow the flow from left to right to see what happens during screening. 
+            Thicker flows represent more people, but all paths are sized for visibility.
+            """)
+        else:
+            st.warning("⚠️ Selected test(s) cannot detect any cancers relevant to your demographic profile.")
+
+        # Calculate individual outcomes for personal impact analysis
         has_cancer = overall_prevalence * population
         no_cancer = population - has_cancer
 
@@ -662,144 +782,27 @@ if not errors:  # Only proceed if no validation errors
         negative = fn + tn  # Total negative tests
 
         biopsy = positive * adjusted_biopsy_rate
-        no_biopsy = positive - biopsy
         complication = biopsy * comp_rate
-        no_complication = biopsy - complication
 
-        cancer_treated = tp * 0.8  # Assume 80% of detected cancers are successfully treated
-        benign = tp * 0.2 + fp  # Benign findings include some true positives + false positives
-        further_monitor = fn  # False negatives need further monitoring
-        reassured = tn  # True negatives are reassured
-
-        # Create Sankey diagram with chronologically aligned stages
-        st.subheader("Patient Flow Diagram")
+        # Personal probability calculations
+        your_cancer_risk = overall_prevalence
+        your_positive_test_chance = positive / population if population > 0 else 0
+        your_cancer_detection_chance = tp / population if population > 0 else 0
+        your_false_positive_chance = fp / population if population > 0 else 0
+        your_biopsy_chance = biopsy / population if population > 0 else 0
+        your_complication_chance = complication / population if population > 0 else 0
         
-        # Define clear chronological stages with vertical alignment
-        # Use non-proportional sizing to keep all elements visible
-        # Stage 1: Initial Screening (x=0.15)
-        # Stage 2: Test Results (x=0.35) 
-        # Stage 3: Follow-up Actions (x=0.65)
-        # Stage 4: Final Outcomes (x=0.85)
-
-        fig = go.Figure(data=[go.Sankey(
-            orientation='h',
-            arrangement='snap',  # Helps with positioning
-            node=dict(
-                pad=8,
-                thickness=12,
-                line=dict(color="gray", width=0.3),
-                label=[
-                    f"{population} Screened",                 # Stage 1
-                    f"Positive ({positive:.1f})",            # Stage 2
-                    f"Negative ({negative:.1f})",            # Stage 2
-                    f"Biopsy ({biopsy:.1f})",               # Stage 3
-                    f"No Biopsy ({no_biopsy:.1f})",         # Stage 3
-                    f"Reassured ({reassured:.1f})",         # Stage 3
-                    f"Monitor ({further_monitor:.1f})",      # Stage 3
-                    f"Cancer Found ({cancer_treated:.1f})",  # Stage 4
-                    f"Benign ({benign:.1f})",               # Stage 4
-                    f"Complication ({complication:.1f})"     # Stage 4
-                ],
-                color=[
-                    "#2E86AB",  # Stage 1 - Blue
-                    "#E74C3C", "#27AE60",  # Stage 2 - Red/Green for pos/neg
-                    "#F39C12", "#3498DB", "#9B59B6", "#E67E22",  # Stage 3 - Various
-                    "#1ABC9C", "#F1C40F", "#E74C3C"  # Stage 4 - Teal/Yellow/Red
-                ],
-                x=[
-                    0.12,           # Stage 1: Initial screening
-                    0.31, 0.39,     # Stage 2: Test results (slightly separated for clarity)
-                    0.61, 0.69, 0.61, 0.69,  # Stage 3: Follow-up actions (staggered)
-                    0.88, 0.88, 0.88  # Stage 4: Final outcomes
-                ],
-                y=[
-                    0.5,            # Stage 1: Centered
-                    0.3, 0.7,       # Stage 2: Positive lower, Negative higher (balanced)
-                    0.2, 0.4, 0.8, 0.9,  # Stage 3: Well-spaced vertically within bounds
-                    0.25, 0.55, 0.4   # Stage 4: Final outcomes spaced within bounds
-                ],
-            ),
-            link=dict(
-                source=[0, 0, 1, 1, 2, 2, 3, 3, 3, 4],
-                target=[1, 2, 3, 4, 5, 6, 7, 8, 9, 8],
-                value=[
-                    positive, negative, biopsy, no_biopsy, reassured, further_monitor, 
-                    cancer_treated, benign, complication, no_biopsy
-                ],
-                color=[
-                    'rgba(231, 76, 60, 0.4)',     # To positive (red)
-                    'rgba(39, 174, 96, 0.4)',     # To negative (green) 
-                    'rgba(243, 156, 18, 0.4)',    # To biopsy (orange)
-                    'rgba(52, 152, 219, 0.4)',    # To no biopsy (blue)
-                    'rgba(155, 89, 182, 0.4)',    # To reassured (purple)
-                    'rgba(230, 126, 34, 0.4)',    # To monitor (orange)
-                    'rgba(26, 188, 156, 0.4)',    # To cancer treated (teal)
-                    'rgba(241, 196, 15, 0.4)',    # To benign (yellow)
-                    'rgba(231, 76, 60, 0.4)',     # To complication (red)
-                    'rgba(241, 196, 15, 0.4)'     # No biopsy to benign (yellow)
-                ],
-                hovertemplate='<b>%{source.label}</b> → <b>%{target.label}</b><br>' +
-                             'Count: %{value:.1f} people<br>' +
-                             '<extra></extra>'
-            ),
-            textfont=dict(size=8, color="black", family="Arial"),
-            # Force all elements to stay within bounds
-            domain=dict(x=[0.02, 0.98], y=[0.15, 0.85])
-        )])
-
-        fig.update_layout(
-            title=dict(
-                text=f"Screening Process Flow for {population} People Like You",
-                x=0.5,
-                font=dict(size=13, family="Arial")
-            ),
-            font=dict(size=8, family="Arial"),
-            height=420,  # Reduced height to ensure everything fits
-            margin=dict(l=25, r=25, t=70, b=25),
-            showlegend=False,
-            plot_bgcolor='white',
-            annotations=[
-                # Add stage labels with careful positioning - moved down slightly
-                dict(x=0.12, y=0.95, text="<b>Screening</b>", showarrow=False, 
-                     font=dict(size=10, color="#34495e", family="Arial"), xref="paper", yref="paper"),
-                dict(x=0.35, y=0.95, text="<b>Test Results</b>", showarrow=False,
-                     font=dict(size=10, color="#34495e", family="Arial"), xref="paper", yref="paper"),
-                dict(x=0.65, y=0.95, text="<b>Follow-up</b>", showarrow=False,
-                     font=dict(size=10, color="#34495e", family="Arial"), xref="paper", yref="paper"),
-                dict(x=0.88, y=0.95, text="<b>Outcomes</b>", showarrow=False,
-                     font=dict(size=10, color="#34495e", family="Arial"), xref="paper", yref="paper")
-            ]
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-
-        # Add interpretation guide below the diagram
-        st.markdown("""
-        **💡 How to read this diagram:** 
-        Follow the flow from left to right to see what happens during screening. 
-        Thicker flows represent more people, but all paths are sized for visibility.
-        """)
-
-        # Add screening impact comparison - INDIVIDUALIZED
+        # Screening impact comparison
         st.subheader("🔄 Your Personal Screening Impact")
         st.markdown("**How does screening change YOUR outcomes?**")
         
-        # Calculate individual probabilities
-        your_cancer_risk = overall_prevalence
-        your_positive_test_chance = (tp + fp) / population
-        your_cancer_detection_chance = tp / population
-        your_false_positive_chance = fp / population
-        your_biopsy_chance = biopsy / population
-        your_complication_chance = complication / population
-        
-        # Create side-by-side comparison
         col1, col2 = st.columns(2)
         
         with col1:
             st.markdown("**📊 Your Probability Changes**")
             
             # Create individual probability comparison chart
-            scenarios = ['Your Cancer Risk', 'Cancer Detected', 'False Positive', 'Biopsy Needed', 'Complication']
+            scenarios = ['Cancer Risk', 'Cancer Detected', 'False Positive', 'Biopsy Needed', 'Complication']
             no_screening = [your_cancer_risk * 100, 0, 0, 0, 0]
             with_screening = [
                 your_cancer_risk * 100,
@@ -874,9 +877,8 @@ if not errors:  # Only proceed if no validation errors
             
             # Personal net benefit
             st.markdown("**📈 Your Net Benefit:**")
-            # Weight benefits vs harms for individual
-            benefit_score = your_cancer_detection_chance * 100  # Detection benefit
-            harm_score = your_false_positive_chance * 10 + your_complication_chance * 50  # Weighted harms
+            benefit_score = your_cancer_detection_chance * 100
+            harm_score = your_false_positive_chance * 10 + your_complication_chance * 50
             net_benefit_individual = benefit_score - harm_score
             
             if net_benefit_individual > 0.1:
@@ -920,12 +922,12 @@ if not errors:  # Only proceed if no validation errors
                 st.markdown("**Your Test Chances:**")
                 st.write(f"• Positive test: **{your_positive_test_chance*100:.1f}%**")
                 if your_positive_test_chance > 0:
-                    your_ppv = (tp/population) / your_positive_test_chance
+                    your_ppv = your_cancer_detection_chance / your_positive_test_chance if your_positive_test_chance > 0 else 0
                     st.write(f"• If positive, cancer probability: **{your_ppv*100:.0f}%**")
                 
-                your_negative_test_chance = (fn + tn) / population
+                your_negative_test_chance = negative / population if population > 0 else 0
                 if your_negative_test_chance > 0:
-                    your_npv = (tn/population) / your_negative_test_chance
+                    your_npv = (tn/population) / your_negative_test_chance if your_negative_test_chance > 0 else 0
                     st.write(f"• If negative, no cancer probability: **{your_npv*100:.1f}%**")
             
             with col3:
@@ -937,7 +939,7 @@ if not errors:  # Only proceed if no validation errors
                     miss_rate = 100 - detection_rate
                     st.write(f"• Cancer miss rate: **{miss_rate:.0f}%**")
                 
-                # Cost estimate for individual
+                # Cost estimate
                 cost_per_test = {"Mammography": 150, "Colonoscopy": 800, "Low-dose CT Scan": 300, 
                                "PSA Test": 50, "Whole-body MRI": 2000, "Galleri Blood Test": 1000}
                 avg_test_cost = np.mean([cost_per_test.get(test, 500) for test in tests])
@@ -953,9 +955,6 @@ if not errors:  # Only proceed if no validation errors
         has_cancer = overall_prevalence * population
         no_cancer = population - has_cancer
 
-        # Simple baseline Sankey
-        baseline_y = calculate_y_positions([has_cancer, no_cancer])
-
         fig = go.Figure(data=[go.Sankey(
             orientation='h',
             node=dict(
@@ -969,7 +968,7 @@ if not errors:  # Only proceed if no validation errors
                 ],
                 color=["#2E86AB", "#FF6B6B", "#51CF66"],
                 x=[0, 0.5, 0.5],
-                y=[0.5, baseline_y[0], baseline_y[1]],
+                y=[0.5, 0.3, 0.7],
             ),
             link=dict(
                 source=[0, 0],
@@ -985,7 +984,7 @@ if not errors:  # Only proceed if no validation errors
             title=f"10-Year Cancer Risk for {population} People Like You (No Screening)",
             font_size=14,
             height=400,
-            width=1000
+            margin=dict(l=50, r=50, t=50, b=50)
         )
         
         st.plotly_chart(fig, use_container_width=True)
@@ -994,19 +993,23 @@ if not errors:  # Only proceed if no validation errors
     st.header("Risk Breakdown by Cancer Type")
     per_cancer_df = calculate_per_cancer_prevalence_fixed(age, sex, risk_multipliers)
     
-    # Sort by personalized risk and show top 10
-    per_cancer_df_sorted = per_cancer_df.sort_values("Personalized Risk (%)", ascending=False).head(10)
-    
-    # Format the dataframe for better display
-    per_cancer_df_sorted["Base Risk (%)"] = per_cancer_df_sorted["Base Risk (%)"].round(3)
-    per_cancer_df_sorted["Risk Multiplier"] = per_cancer_df_sorted["Risk Multiplier"].round(1)
-    per_cancer_df_sorted["Personalized Risk (%)"] = per_cancer_df_sorted["Personalized Risk (%)"].round(2)
-    
-    st.dataframe(
-        per_cancer_df_sorted,
-        use_container_width=True,
-        hide_index=True
-    )
+    if not per_cancer_df.empty:
+        # Sort by personalized risk and show top 10
+        per_cancer_df_sorted = per_cancer_df.sort_values("Personalized Risk (%)", ascending=False).head(10)
+        
+        # Format the dataframe for better display
+        per_cancer_df_sorted = per_cancer_df_sorted.copy()
+        per_cancer_df_sorted["Base Risk (%)"] = per_cancer_df_sorted["Base Risk (%)"].round(3)
+        per_cancer_df_sorted["Risk Multiplier"] = per_cancer_df_sorted["Risk Multiplier"].round(1)
+        per_cancer_df_sorted["Personalized Risk (%)"] = per_cancer_df_sorted["Personalized Risk (%)"].round(2)
+        
+        st.dataframe(
+            per_cancer_df_sorted,
+            use_container_width=True,
+            hide_index=True
+        )
+    else:
+        st.write("No cancer risk data available for your demographic profile.")
     
     # Risk factors summary
     st.header("Your Risk Factors")
