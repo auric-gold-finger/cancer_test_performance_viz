@@ -403,21 +403,64 @@ def combine_tests(tests, mode, age, sex, risk_multipliers):
     overall_spec = np.mean([co["specificity"] for co in cancer_outcomes.values()])
     return overall_sens, overall_spec, cancer_outcomes
 
-def calculate_y_positions(values, total_height=0.9, min_spacing=0.05):
-    """Calculate y-positions for Sankey nodes to avoid overlap"""
+def calculate_y_positions(values, total_height=0.8, min_spacing=0.02):
+    """Calculate y-positions for Sankey nodes to avoid overlap with better spacing"""
     total_value = sum(values)
     if total_value == 0:
         return [0.5] * len(values)
     
-    normalized = [v / total_value for v in values]
-    y_positions = []
-    current_y = 0.05
+    # Calculate proportional heights
+    proportions = [v / total_value for v in values]
     
-    for norm in normalized:
-        y_positions.append(current_y + norm * total_height / 2)
-        current_y += norm * total_height + min_spacing
+    # Calculate actual heights considering minimum spacing
+    available_height = total_height - (len(values) - 1) * min_spacing
+    heights = [p * available_height for p in proportions]
+    
+    # Calculate y-positions (centers of each node)
+    y_positions = []
+    current_y = 0.1  # Start higher from bottom
+    
+    for height in heights:
+        y_positions.append(current_y + height / 2)
+        current_y += height + min_spacing
     
     return y_positions
+
+def create_comparison_chart(population, has_cancer_baseline, has_cancer_with_screening, 
+                          cancers_detected, cancers_missed, false_positives, complications):
+    """Create a comparison chart showing screening vs no screening outcomes"""
+    
+    fig = go.Figure()
+    
+    # Baseline (no screening)
+    fig.add_trace(go.Bar(
+        name='No Screening',
+        x=['Cancers', 'Detected', 'Missed', 'False Alarms', 'Complications'],
+        y=[has_cancer_baseline, 0, has_cancer_baseline, 0, 0],
+        marker_color='#FF6B6B',
+        hovertemplate='No Screening<br>%{y:.1f} people<extra></extra>'
+    ))
+    
+    # With screening
+    fig.add_trace(go.Bar(
+        name='With Screening',
+        x=['Cancers', 'Detected', 'Missed', 'False Alarms', 'Complications'],
+        y=[has_cancer_baseline, cancers_detected, cancers_missed, false_positives, complications],
+        marker_color='#51CF66',
+        hovertemplate='With Screening<br>%{y:.1f} people<extra></extra>'
+    ))
+    
+    fig.update_layout(
+        title=f'Screening Impact Comparison (per {population} people)',
+        xaxis_title='Outcome Category',
+        yaxis_title='Number of People',
+        barmode='group',
+        height=400,
+        showlegend=True,
+        margin=dict(l=50, r=50, t=80, b=50)
+    )
+    
+    return fig
 
 def validate_inputs(age, smoking_status, pack_years, family_ages):
     """Validate user inputs and return error messages"""
@@ -631,22 +674,22 @@ if not errors:  # Only proceed if no validation errors
         # Create Sankey diagram
         st.subheader("Patient Flow Diagram")
         
-        # Calculate dynamic y-positions for each stage
+        # Calculate dynamic y-positions for each stage with better spacing
         stage1_values = [positive, negative]
-        stage1_y = calculate_y_positions(stage1_values)
+        stage1_y = calculate_y_positions(stage1_values, total_height=0.7, min_spacing=0.05)
         
         stage2_values = [biopsy, no_biopsy, reassured, further_monitor]
-        stage2_y = calculate_y_positions(stage2_values)
+        stage2_y = calculate_y_positions(stage2_values, total_height=0.7, min_spacing=0.03)
         
         stage3_values = [cancer_treated, benign, complication]
-        stage3_y = calculate_y_positions(stage3_values)
+        stage3_y = calculate_y_positions(stage3_values, total_height=0.7, min_spacing=0.05)
 
-        # Create Sankey diagram
+        # Create Sankey diagram with better height management
         fig = go.Figure(data=[go.Sankey(
             orientation='h',
             node=dict(
-                pad=20,
-                thickness=30,
+                pad=15,
+                thickness=25,
                 line=dict(color="gray", width=0.5),
                 label=[
                     f"{population} People Screened",
@@ -665,7 +708,7 @@ if not errors:  # Only proceed if no validation errors
                     "#C73E1D", "#86A873", "#4B9DE8", "#FF6B6B",
                     "#51CF66", "#FFD93D", "#FF8E53"
                 ],
-                x=[0, 0.2, 0.2, 0.5, 0.5, 0.7, 0.7, 0.9, 0.9, 0.9],
+                x=[0, 0.25, 0.25, 0.55, 0.55, 0.75, 0.75, 0.95, 0.95, 0.95],
                 y=[
                     0.5,  # Root node centered
                     stage1_y[0], stage1_y[1],  # Stage 1
@@ -681,36 +724,133 @@ if not errors:  # Only proceed if no validation errors
                 color='rgba(100, 150, 200, 0.3)',
                 hovertemplate='%{source.label} → %{target.label}<br>Count: %{value:.1f}<extra></extra>'
             ),
-            textfont=dict(size=12, color="black")
+            textfont=dict(size=11, color="black")
         )])
 
         fig.update_layout(
             title=f"Screening Outcomes for {population} People Like You",
-            font_size=12,
-            height=700,
-            width=1200,
-            margin=dict(l=50, r=50, t=80, b=50)
+            font_size=11,
+            height=600,  # Reduced height
+            margin=dict(l=20, r=20, t=60, b=20)  # Tighter margins
         )
         
         st.plotly_chart(fig, use_container_width=True)
 
-        # Key metrics
-        with st.expander("📊 Detailed Results", expanded=True):
-            col1, col2 = st.columns(2)
+        # Add screening impact comparison
+        st.subheader("🔄 Screening Impact Analysis")
+        st.markdown("**How much does screening change outcomes?**")
+        
+        # Create side-by-side comparison
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**📊 Comparison Chart**")
+            comparison_fig = create_comparison_chart(
+                population, has_cancer, has_cancer, cancer_treated, 
+                further_monitor, fp, complication
+            )
+            st.plotly_chart(comparison_fig, use_container_width=True)
+        
+        with col2:
+            st.markdown("**🎯 Key Benefits & Harms**")
+            
+            # Benefits
+            st.markdown("**✅ Benefits of Screening:**")
+            detection_rate = (cancer_treated / has_cancer * 100) if has_cancer > 0 else 0
+            st.write(f"• **{cancer_treated:.1f}** cancers detected early ({detection_rate:.0f}% of total)")
+            
+            lives_saved = cancer_treated * 0.3  # Assume 30% mortality reduction from early detection
+            st.write(f"• **~{lives_saved:.1f}** potential lives saved")
+            
+            if further_monitor < has_cancer:
+                prevented_late_stage = has_cancer - further_monitor
+                st.write(f"• **{prevented_late_stage:.1f}** late-stage cancers prevented")
+            
+            # Harms
+            st.markdown("**⚠️ Potential Harms:**")
+            st.write(f"• **{fp:.1f}** false positive results")
+            st.write(f"• **{biopsy:.1f}** unnecessary biopsies")
+            st.write(f"• **{complication:.1f}** biopsy complications")
+            
+            # Net benefit calculation
+            st.markdown("**📈 Net Benefit Analysis:**")
+            harm_weight = 0.1  # Weight false positives as 0.1x as bad as missing a cancer
+            net_benefit = cancer_treated - (fp * harm_weight) - (complication * 2)
+            
+            if net_benefit > 0:
+                st.success(f"**Net Benefit: +{net_benefit:.1f}** (Screening likely beneficial)")
+            else:
+                st.warning(f"**Net Benefit: {net_benefit:.1f}** (Consider risks vs benefits)")
+        
+        # Detailed impact metrics
+        with st.expander("📊 Detailed Impact Metrics", expanded=False):
+            col1, col2, col3 = st.columns(3)
             
             with col1:
-                st.markdown("**Test Performance:**")
+                st.markdown("**Detection Performance:**")
                 st.write(f"• Sensitivity: {sens:.1%}")
                 st.write(f"• Specificity: {spec:.1%}")
-                st.write(f"• Positive Predictive Value: {(tp/positive if positive > 0 else 0):.1%}")
-                st.write(f"• Negative Predictive Value: {(tn/negative if negative > 0 else 0):.1%}")
+                if positive > 0:
+                    ppv = tp / positive
+                    st.write(f"• Positive Predictive Value: {ppv:.1%}")
+                if negative > 0:
+                    npv = tn / negative
+                    st.write(f"• Negative Predictive Value: {npv:.1%}")
             
             with col2:
-                st.markdown("**Expected Outcomes:**")
+                st.markdown("**Population Impact:**")
+                st.write(f"• Cancers in population: {has_cancer:.1f}")
                 st.write(f"• Cancers detected: {cancer_treated:.1f}")
                 st.write(f"• Cancers missed: {further_monitor:.1f}")
-                st.write(f"• False alarms: {fp:.1f}")
-                st.write(f"• Biopsy complications: {complication:.1f}")
+                miss_rate = (further_monitor / has_cancer * 100) if has_cancer > 0 else 0
+                st.write(f"• Miss rate: {miss_rate:.1f}%")
+            
+            with col3:
+                st.markdown("**Downstream Effects:**")
+                st.write(f"• People needing biopsy: {biopsy:.1f}")
+                biopsy_rate = (biopsy / population * 100)
+                st.write(f"• Biopsy rate: {biopsy_rate:.1f}%")
+                if biopsy > 0:
+                    complication_rate = (complication / biopsy * 100)
+                    st.write(f"• Complication rate: {complication_rate:.1f}%")
+                
+                # Cost implications (rough estimates)
+                cost_per_test = {"Mammography": 150, "Colonoscopy": 800, "Low-dose CT Scan": 300, 
+                               "PSA Test": 50, "Whole-body MRI": 2000, "Galleri Blood Test": 1000}
+                avg_test_cost = np.mean([cost_per_test.get(test, 500) for test in tests])
+                total_cost = population * avg_test_cost + biopsy * 1500  # $1500 per biopsy
+                cost_per_cancer_found = (total_cost / cancer_treated) if cancer_treated > 0 else 0
+                
+                st.write(f"• Est. cost per cancer found: ${cost_per_cancer_found:,.0f}")
+
+        # Number Needed to Screen
+        if cancer_treated > 0:
+            nns = population / cancer_treated
+            st.info(f"**Number Needed to Screen: {nns:.0f}** (Need to screen {nns:.0f} people to find 1 cancer)")
+
+        # Risk-benefit summary
+        st.markdown("---")
+        st.markdown("### 🎯 Summary for Your Risk Profile")
+        
+        if overall_prevalence > 0.1:  # High risk
+            if net_benefit > 5:
+                st.success("✅ **High-risk profile with significant screening benefit** - Screening strongly recommended for discussion with your doctor")
+            elif net_benefit > 0:
+                st.info("🟡 **High-risk profile with moderate screening benefit** - Screening worth considering with your doctor")
+            else:
+                st.warning("⚠️ **High-risk profile but screening benefits unclear** - Discuss personalized approach with your doctor")
+        elif overall_prevalence > 0.05:  # Moderate risk
+            if net_benefit > 2:
+                st.success("✅ **Moderate-risk profile with clear screening benefit** - Screening recommended for discussion")
+            elif net_benefit > 0:
+                st.info("🟡 **Moderate-risk profile with some screening benefit** - Consider screening options")
+            else:
+                st.warning("⚠️ **Moderate-risk profile but limited screening benefit** - Weigh individual preferences")
+        else:  # Low risk
+            if net_benefit > 1:
+                st.info("🟡 **Low-risk profile but some screening benefit** - Consider if benefits outweigh inconvenience")
+            else:
+                st.warning("⚠️ **Low-risk profile with minimal screening benefit** - May not be cost-effective")
 
     else:
         # No tests selected - show baseline risk
