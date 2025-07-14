@@ -4,38 +4,91 @@ import plotly.graph_objects as go
 import numpy as np
 import math
 
-# CSS for clean look
+# Additional CSS for clean look
 st.markdown("""
 <style>
-    .stApp {
-        background-color: #ffffff;
-        font-family: 'Inter', 'Segoe UI', sans-serif;
-    }
     .main-header {
-        color: #1f2937;
+        color: #1f2937 !important;
         text-align: center;
         font-weight: 600;
     }
     .metric-box {
-        background-color: #f9fafb;
+        background-color: #f9fafb !important;
         border-radius: 6px;
         padding: 12px;
         margin: 8px 0;
         border: 1px solid #e5e7eb;
     }
     .warning-box {
-        background-color: #fefce8;
+        background-color: #fefce8 !important;
         border: 1px solid #eab308;
         border-radius: 6px;
         padding: 16px;
         margin: 12px 0;
-        color: #92400e;
+        color: #92400e !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # App config
-st.set_page_config(page_title="Cancer Screening Outcomes Visualizer", page_icon=None, layout="wide")
+st.set_page_config(
+    page_title="Cancer Screening Outcomes Visualizer", 
+    page_icon=None, 
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Force light theme
+st.markdown("""
+<style>
+    /* Force light theme */
+    .stApp {
+        background-color: #ffffff !important;
+        color: #1f2937 !important;
+    }
+    
+    /* Override any dark theme elements */
+    .main .block-container {
+        background-color: #ffffff !important;
+        color: #1f2937 !important;
+    }
+    
+    /* Sidebar styling */
+    .css-1d391kg {
+        background-color: #f9fafb !important;
+    }
+    
+    /* Metric containers */
+    [data-testid="metric-container"] {
+        background-color: #ffffff !important;
+        border: 1px solid #e5e7eb !important;
+        border-radius: 6px !important;
+        padding: 12px !important;
+    }
+    
+    /* Text elements */
+    .stMarkdown, .stText, p, h1, h2, h3, h4, h5, h6 {
+        color: #1f2937 !important;
+    }
+    
+    /* Input elements */
+    .stSelectbox > div > div, .stSlider > div, .stMultiSelect > div > div {
+        background-color: #ffffff !important;
+        color: #1f2937 !important;
+    }
+    
+    /* Expander styling */
+    .streamlit-expanderHeader {
+        background-color: #f9fafb !important;
+        color: #1f2937 !important;
+    }
+    
+    .streamlit-expanderContent {
+        background-color: #ffffff !important;
+        color: #1f2937 !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 st.markdown("<h1 class='main-header'>Cancer Screening Outcomes Visualizer</h1>", unsafe_allow_html=True)
 st.markdown("""
@@ -521,7 +574,7 @@ def create_sankey_diagram(population, overall_prevalence, sens, spec, adjusted_b
             hovertemplate='<b>%{source.label}</b> → <b>%{target.label}</b><br>' +
                          'Count: %{value:.1f} people<br><extra></extra>'
         ),
-        textfont=dict(size=8, color="black", family="Arial"),
+        textfont=dict(size=8, color="black", family="Inter"),
         domain=dict(x=[0.02, 0.98], y=[0.15, 0.85])
     )])
 
@@ -529,9 +582,9 @@ def create_sankey_diagram(population, overall_prevalence, sens, spec, adjusted_b
         title=dict(
             text=f"Screening Process Flow for {population} People Like You",
             x=0.5,
-            font=dict(size=13, family="Arial")
+            font=dict(size=13, family="Inter")
         ),
-        font=dict(size=8, family="Arial"),
+        font=dict(size=8, family="Inter"),
         height=420,
         margin=dict(l=25, r=25, t=70, b=25),
         showlegend=False,
@@ -979,7 +1032,7 @@ if not errors:  # Only proceed if no validation errors
                 color='rgba(100, 150, 200, 0.3)',
                 hovertemplate='%{source.label} → %{target.label}<br>Count: %{value:.1f}<extra></extra>'
             ),
-            textfont=dict(size=14, color="black")
+            textfont=dict(size=14, color="black", family="Inter")
         )])
 
         fig.update_layout(
