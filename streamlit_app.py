@@ -35,7 +35,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # App config
-st.set_page_config(page_title="Cancer Screening Outcomes Visualizer", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Cancer Screening Outcomes Visualizer", page_icon=None, layout="wide")
 
 st.markdown("<h1 class='main-header'>Cancer Screening Outcomes Visualizer</h1>", unsafe_allow_html=True)
 st.markdown("""
@@ -537,14 +537,14 @@ def create_sankey_diagram(population, overall_prevalence, sens, spec, adjusted_b
         showlegend=False,
         plot_bgcolor='white',
         annotations=[
-            dict(x=0.12, y=0.95, text="<b>Screening</b>", showarrow=False, 
-                 font=dict(size=10, color="#34495e", family="Arial"), xref="paper", yref="paper"),
-            dict(x=0.35, y=0.95, text="<b>Test Results</b>", showarrow=False,
-                 font=dict(size=10, color="#34495e", family="Arial"), xref="paper", yref="paper"),
-            dict(x=0.65, y=0.95, text="<b>Follow-up</b>", showarrow=False,
-                 font=dict(size=10, color="#34495e", family="Arial"), xref="paper", yref="paper"),
-            dict(x=0.88, y=0.95, text="<b>Outcomes</b>", showarrow=False,
-                 font=dict(size=10, color="#34495e", family="Arial"), xref="paper", yref="paper")
+            dict(x=0.12, y=0.95, text="Screening", showarrow=False, 
+                 font=dict(size=10, color="#374151", family="Inter"), xref="paper", yref="paper"),
+            dict(x=0.35, y=0.95, text="Test Results", showarrow=False,
+                 font=dict(size=10, color="#374151", family="Inter"), xref="paper", yref="paper"),
+            dict(x=0.65, y=0.95, text="Follow-up", showarrow=False,
+                 font=dict(size=10, color="#374151", family="Inter"), xref="paper", yref="paper"),
+            dict(x=0.88, y=0.95, text="Outcomes", showarrow=False,
+                 font=dict(size=10, color="#374151", family="Inter"), xref="paper", yref="paper")
         ]
     )
     
@@ -623,11 +623,11 @@ with st.sidebar:
     
     if errors:
         for error in errors:
-            st.error(f"❌ {error}")
+            st.error(f"Error: {error}")
     
     if warnings:
         for warning in warnings:
-            st.warning(f"⚠️ {warning}")
+            st.warning(f"Warning: {warning}")
 
 # Main calculations
 if not errors:  # Only proceed if no validation errors
@@ -852,101 +852,101 @@ if not errors:  # Only proceed if no validation errors
             st.plotly_chart(fig_individual, use_container_width=True)
         
         with col2:
-            st.markdown("**🎯 Your Personal Benefits & Risks**")
+            st.markdown("**Your Personal Benefits & Risks**")
             
             # Individual benefits
-            st.markdown("**✅ Your Benefits from Screening:**")
+            st.markdown("**Benefits from Screening:**")
             if your_cancer_detection_chance > 0.001:
-                st.write(f"• **{your_cancer_detection_chance*100:.2f}%** chance of early cancer detection")
+                st.write(f"• {your_cancer_detection_chance*100:.2f}% chance of early cancer detection")
                 
                 # Estimated mortality benefit
                 mortality_reduction = your_cancer_detection_chance * 0.3  # 30% mortality reduction
-                st.write(f"• **{mortality_reduction*100:.2f}%** reduction in cancer death risk")
+                st.write(f"• {mortality_reduction*100:.2f}% reduction in cancer death risk")
             else:
-                st.write(f"• **Very low** chance of finding cancer ({your_cancer_detection_chance*100:.3f}%)")
+                st.write(f"• Very low chance of finding cancer ({your_cancer_detection_chance*100:.3f}%)")
             
             detection_efficiency = (your_cancer_detection_chance / your_cancer_risk * 100) if your_cancer_risk > 0 else 0
-            st.write(f"• **{detection_efficiency:.0f}%** of your cancers would be caught early")
+            st.write(f"• {detection_efficiency:.0f}% of your cancers would be caught early")
             
             # Individual risks
-            st.markdown("**⚠️ Your Risks from Screening:**")
-            st.write(f"• **{your_false_positive_chance*100:.1f}%** chance of false positive")
-            st.write(f"• **{your_biopsy_chance*100:.1f}%** chance of needing biopsy")
+            st.markdown("**Risks from Screening:**")
+            st.write(f"• {your_false_positive_chance*100:.1f}% chance of false positive")
+            st.write(f"• {your_biopsy_chance*100:.1f}% chance of needing biopsy")
             if your_complication_chance > 0.001:
-                st.write(f"• **{your_complication_chance*100:.2f}%** chance of biopsy complication")
+                st.write(f"• {your_complication_chance*100:.2f}% chance of biopsy complication")
             else:
-                st.write(f"• **<0.01%** chance of biopsy complication")
+                st.write(f"• <0.01% chance of biopsy complication")
             
             # Personal net benefit
-            st.markdown("**📈 Your Net Benefit:**")
+            st.markdown("**Net Benefit Analysis:**")
             benefit_score = your_cancer_detection_chance * 100
             harm_score = your_false_positive_chance * 10 + your_complication_chance * 50
             net_benefit_individual = benefit_score - harm_score
             
             if net_benefit_individual > 0.1:
-                st.success(f"**Positive (+{net_benefit_individual:.2f})** - Likely beneficial for you")
+                st.success(f"Positive (+{net_benefit_individual:.2f}) - Likely beneficial for you")
             elif net_benefit_individual > -0.1:
-                st.info(f"**Neutral ({net_benefit_individual:.2f})** - Marginal benefit")
+                st.info(f"Neutral ({net_benefit_individual:.2f}) - Marginal benefit")
             else:
-                st.warning(f"**Negative ({net_benefit_individual:.2f})** - Limited benefit for your risk profile")
+                st.warning(f"Negative ({net_benefit_individual:.2f}) - Limited benefit for your risk profile")
             
             # Personalized recommendation
-            st.markdown("**🎯 For Your Risk Profile:**")
+            st.markdown("**For Your Risk Profile:**")
             if your_cancer_risk > 0.1:  # High risk (>10%)
                 if net_benefit_individual > 0.1:
-                    st.success("✅ **Screening strongly recommended** - High risk with clear benefit")
+                    st.success("Screening strongly recommended - High risk with clear benefit")
                 else:
-                    st.info("🟡 **Discuss with doctor** - High risk but consider test limitations")
+                    st.info("Discuss with doctor - High risk but consider test limitations")
             elif your_cancer_risk > 0.05:  # Moderate risk (5-10%)
                 if net_benefit_individual > 0.05:
-                    st.success("✅ **Screening recommended** - Moderate risk with good benefit")
+                    st.success("Screening recommended - Moderate risk with good benefit")
                 else:
-                    st.info("🟡 **Consider screening** - Weigh personal preferences")
+                    st.info("Consider screening - Weigh personal preferences")
             else:  # Low risk (<5%)
                 if net_benefit_individual > 0.02:
-                    st.info("🟡 **Screening may be worthwhile** - Low risk but some benefit")
+                    st.info("Screening may be worthwhile - Low risk but some benefit")
                 else:
-                    st.warning("⚠️ **Limited benefit** - Consider if convenience/cost worth it")
+                    st.warning("Limited benefit - Consider if convenience/cost worth it")
 
         # Detailed personal metrics
-        with st.expander("📊 Your Detailed Personal Metrics", expanded=False):
+        with st.expander("Your Detailed Personal Metrics", expanded=False):
             col1, col2, col3 = st.columns(3)
             
             with col1:
                 st.markdown("**Your Risk Profile:**")
-                st.write(f"• 10-year cancer risk: **{your_cancer_risk*100:.1f}%**")
-                st.write(f"• Risk level: **{risk_level}**")
+                st.write(f"• 10-year cancer risk: {your_cancer_risk*100:.1f}%")
+                st.write(f"• Risk level: {risk_level}")
                 baseline_risk = calculate_overall_prevalence_fixed(age, sex, None)[0]
                 risk_multiplier_overall = your_cancer_risk / baseline_risk if baseline_risk > 0 else 1
-                st.write(f"• Risk vs average: **{risk_multiplier_overall:.1f}x**")
+                st.write(f"• Risk vs average: {risk_multiplier_overall:.1f}x")
             
             with col2:
                 st.markdown("**Your Test Chances:**")
-                st.write(f"• Positive test: **{your_positive_test_chance*100:.1f}%**")
+                st.write(f"• Positive test: {your_positive_test_chance*100:.1f}%")
                 if your_positive_test_chance > 0:
                     your_ppv = your_cancer_detection_chance / your_positive_test_chance if your_positive_test_chance > 0 else 0
-                    st.write(f"• If positive, cancer probability: **{your_ppv*100:.0f}%**")
+                    st.write(f"• If positive, cancer probability: {your_ppv*100:.0f}%")
                 
                 your_negative_test_chance = negative / population if population > 0 else 0
                 if your_negative_test_chance > 0:
                     your_npv = (tn/population) / your_negative_test_chance if your_negative_test_chance > 0 else 0
-                    st.write(f"• If negative, no cancer probability: **{your_npv*100:.1f}%**")
+                    st.write(f"• If negative, no cancer probability: {your_npv*100:.1f}%")
             
             with col3:
                 st.markdown("**Your Outcomes:**")
                 if your_cancer_risk > 0:
                     detection_rate = (your_cancer_detection_chance / your_cancer_risk * 100)
-                    st.write(f"• Cancer detection rate: **{detection_rate:.0f}%**")
+                    st.write(f"• Cancer detection rate: {detection_rate:.0f}%")
                     
                     miss_rate = 100 - detection_rate
-                    st.write(f"• Cancer miss rate: **{miss_rate:.0f}%**")
+                    st.write(f"• Cancer miss rate: {miss_rate:.0f}%")
                 
                 # Cost estimate
                 cost_per_test = {"Mammography": 150, "Colonoscopy": 800, "Low-dose CT Scan": 300, 
                                "PSA Test": 50, "Whole-body MRI": 2000, "Galleri Blood Test": 1000}
                 avg_test_cost = np.mean([cost_per_test.get(test, 500) for test in tests])
                 expected_cost = avg_test_cost + (your_biopsy_chance * 1500)
-                st.write(f"• Expected cost: **${expected_cost:.0f}**")
+                st.write(f"• Expected cost: ${expected_cost:.0f}")
 
         st.markdown("---")
 
@@ -968,7 +968,7 @@ if not errors:  # Only proceed if no validation errors
                     f"Will Develop Cancer ({has_cancer:.1f})", 
                     f"Will Not Develop Cancer ({no_cancer:.1f})"
                 ],
-                color=["#2E86AB", "#FF6B6B", "#51CF66"],
+                color=["#475569", "#dc2626", "#059669"],
                 x=[0, 0.5, 0.5],
                 y=[0.5, 0.3, 0.7],
             ),
@@ -1038,7 +1038,7 @@ if not errors:  # Only proceed if no validation errors
         st.write("• No major risk factors identified")
     
     # Limitations and disclaimers
-    with st.expander("⚠️ Important Limitations"):
+    with st.expander("Important Limitations"):
         st.markdown("""
         **This tool has important limitations:**
         
