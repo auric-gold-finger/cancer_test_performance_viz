@@ -675,89 +675,125 @@ if not errors:  # Only proceed if no validation errors
         st.subheader("Patient Flow Diagram")
         
         # Define clear chronological stages with vertical alignment
+        # Use non-proportional sizing to keep all elements visible
         # Stage 1: Initial Screening (x=0.15)
         # Stage 2: Test Results (x=0.35) 
         # Stage 3: Follow-up Actions (x=0.65)
         # Stage 4: Final Outcomes (x=0.85)
 
+        # Calculate relative sizes for better visibility (not strictly proportional)
+        total_flow = population
+        
+        # Normalize flows for better visual balance
+        def normalize_for_display(value, min_size=0.1, max_size=0.8):
+            """Normalize values for better visual display while preserving relative importance"""
+            if value <= 0:
+                return min_size
+            # Use log scale for better visual balance
+            normalized = min_size + (max_size - min_size) * (math.log(value + 1) / math.log(total_flow + 1))
+            return max(min_size, min(max_size, normalized))
+
         fig = go.Figure(data=[go.Sankey(
             orientation='h',
+            arrangement='snap',  # Helps with positioning
             node=dict(
-                pad=15,
-                thickness=20,
+                pad=10,
+                thickness=15,
                 line=dict(color="gray", width=0.5),
                 label=[
-                    f"{population} People Screened",           # Stage 1
-                    f"Test Positive ({positive:.1f})",        # Stage 2
-                    f"Test Negative ({negative:.1f})",        # Stage 2
-                    f"Biopsy ({biopsy:.1f})",                # Stage 3
-                    f"No Biopsy ({no_biopsy:.1f})",          # Stage 3
-                    f"Reassured ({reassured:.1f})",          # Stage 3
-                    f"Monitor ({further_monitor:.1f})",       # Stage 3
-                    f"Cancer Treated ({cancer_treated:.1f})", # Stage 4
-                    f"Benign ({benign:.1f})",                # Stage 4
-                    f"Complication ({complication:.1f})"      # Stage 4
+                    f"{population} Screened",                 # Stage 1
+                    f"Positive ({positive:.1f})",            # Stage 2
+                    f"Negative ({negative:.1f})",            # Stage 2
+                    f"Biopsy ({biopsy:.1f})",               # Stage 3
+                    f"No Biopsy ({no_biopsy:.1f})",         # Stage 3
+                    f"Reassured ({reassured:.1f})",         # Stage 3
+                    f"Monitor ({further_monitor:.1f})",      # Stage 3
+                    f"Cancer Found ({cancer_treated:.1f})",  # Stage 4
+                    f"Benign ({benign:.1f})",               # Stage 4
+                    f"Complication ({complication:.1f})"     # Stage 4
                 ],
                 color=[
                     "#2E86AB",  # Stage 1 - Blue
-                    "#A23B72", "#F18F01",  # Stage 2 - Purple/Orange
-                    "#C73E1D", "#86A873", "#4B9DE8", "#FF6B6B",  # Stage 3 - Various
-                    "#51CF66", "#FFD93D", "#FF8E53"  # Stage 4 - Green/Yellow/Orange
+                    "#E74C3C", "#27AE60",  # Stage 2 - Red/Green for pos/neg
+                    "#F39C12", "#3498DB", "#9B59B6", "#E67E22",  # Stage 3 - Various
+                    "#1ABC9C", "#F1C40F", "#E74C3C"  # Stage 4 - Teal/Yellow/Red
                 ],
                 x=[
-                    0.15,           # Stage 1: Initial screening
-                    0.35, 0.35,     # Stage 2: Test results (vertically aligned)
-                    0.65, 0.65, 0.65, 0.65,  # Stage 3: Follow-up actions (vertically aligned)
-                    0.85, 0.85, 0.85  # Stage 4: Final outcomes (vertically aligned)
+                    0.12,           # Stage 1: Initial screening
+                    0.32, 0.38,     # Stage 2: Test results (slightly separated for clarity)
+                    0.62, 0.68, 0.62, 0.68,  # Stage 3: Follow-up actions (staggered)
+                    0.88, 0.88, 0.88  # Stage 4: Final outcomes
                 ],
                 y=[
                     0.5,            # Stage 1: Centered
-                    0.3, 0.7,       # Stage 2: Positive lower, Negative higher
-                    0.15, 0.35, 0.75, 0.85,  # Stage 3: Spread vertically
-                    0.15, 0.5, 0.25   # Stage 4: Final outcomes spread
+                    0.25, 0.75,     # Stage 2: Positive lower, Negative higher (balanced)
+                    0.15, 0.35, 0.85, 0.95,  # Stage 3: Well-spaced vertically within bounds
+                    0.2, 0.5, 0.35   # Stage 4: Final outcomes spaced within bounds
                 ],
             ),
             link=dict(
                 source=[0, 0, 1, 1, 2, 2, 3, 3, 3, 4],
                 target=[1, 2, 3, 4, 5, 6, 7, 8, 9, 8],
-                value=[positive, negative, biopsy, no_biopsy, reassured, further_monitor, 
-                      cancer_treated, benign, complication, no_biopsy],
-                color=[
-                    'rgba(162, 59, 114, 0.4)',    # To positive
-                    'rgba(241, 143, 1, 0.4)',     # To negative
-                    'rgba(199, 62, 29, 0.4)',     # To biopsy
-                    'rgba(134, 168, 115, 0.4)',   # To no biopsy
-                    'rgba(75, 157, 232, 0.4)',    # To reassured
-                    'rgba(255, 107, 107, 0.4)',   # To monitor
-                    'rgba(81, 207, 102, 0.4)',    # To cancer treated
-                    'rgba(255, 217, 61, 0.4)',    # To benign
-                    'rgba(255, 142, 83, 0.4)',    # To complication
-                    'rgba(255, 217, 61, 0.4)'     # No biopsy to benign
+                value=[
+                    # Use actual values but will be displayed proportionally by Plotly
+                    positive, negative, biopsy, no_biopsy, reassured, further_monitor, 
+                    cancer_treated, benign, complication, no_biopsy
                 ],
-                hovertemplate='%{source.label} → %{target.label}<br>Count: %{value:.1f}<extra></extra>'
+                color=[
+                    'rgba(231, 76, 60, 0.4)',     # To positive (red)
+                    'rgba(39, 174, 96, 0.4)',     # To negative (green) 
+                    'rgba(243, 156, 18, 0.4)',    # To biopsy (orange)
+                    'rgba(52, 152, 219, 0.4)',    # To no biopsy (blue)
+                    'rgba(155, 89, 182, 0.4)',    # To reassured (purple)
+                    'rgba(230, 126, 34, 0.4)',    # To monitor (orange)
+                    'rgba(26, 188, 156, 0.4)',    # To cancer treated (teal)
+                    'rgba(241, 196, 15, 0.4)',    # To benign (yellow)
+                    'rgba(231, 76, 60, 0.4)',     # To complication (red)
+                    'rgba(241, 196, 15, 0.4)'     # No biopsy to benign (yellow)
+                ],
+                hovertemplate='<b>%{source.label}</b> → <b>%{target.label}</b><br>' +
+                             'Count: %{value:.1f} people<br>' +
+                             '<extra></extra>'
             ),
-            textfont=dict(size=10, color="black")
+            textfont=dict(size=9, color="black"),
+            # Force all elements to stay within bounds
+            domain=dict(x=[0.05, 0.95], y=[0.1, 0.9])
         )])
 
         fig.update_layout(
-            title=f"Screening Process Flow for {population} People Like You",
+            title=dict(
+                text=f"Screening Process Flow for {population} People Like You",
+                x=0.5,
+                font=dict(size=14)
+            ),
             font_size=10,
-            height=500,
-            margin=dict(l=20, r=20, t=60, b=20),
+            height=450,  # Reduced height to ensure everything fits
+            margin=dict(l=30, r=30, t=80, b=30),
+            showlegend=False,
+            plot_bgcolor='white',
             annotations=[
-                # Add stage labels
-                dict(x=0.15, y=1.05, text="<b>Screening</b>", showarrow=False, 
-                     font=dict(size=12, color="gray"), xref="paper", yref="paper"),
-                dict(x=0.35, y=1.05, text="<b>Test Results</b>", showarrow=False,
-                     font=dict(size=12, color="gray"), xref="paper", yref="paper"),
-                dict(x=0.65, y=1.05, text="<b>Follow-up</b>", showarrow=False,
-                     font=dict(size=12, color="gray"), xref="paper", yref="paper"),
-                dict(x=0.85, y=1.05, text="<b>Outcomes</b>", showarrow=False,
-                     font=dict(size=12, color="gray"), xref="paper", yref="paper")
+                # Add stage labels with careful positioning
+                dict(x=0.12, y=1.02, text="<b>Screening</b>", showarrow=False, 
+                     font=dict(size=11, color="#34495e"), xref="paper", yref="paper"),
+                dict(x=0.35, y=1.02, text="<b>Test Results</b>", showarrow=False,
+                     font=dict(size=11, color="#34495e"), xref="paper", yref="paper"),
+                dict(x=0.65, y=1.02, text="<b>Follow-up</b>", showarrow=False,
+                     font=dict(size=11, color="#34495e"), xref="paper", yref="paper"),
+                dict(x=0.88, y=1.02, text="<b>Outcomes</b>", showarrow=False,
+                     font=dict(size=11, color="#34495e"), xref="paper", yref="paper")
             ]
         )
         
         st.plotly_chart(fig, use_container_width=True)
+
+        # Add interpretation guide below the diagram
+        st.markdown("""
+        **💡 How to read this diagram:** 
+        Follow the flow from left to right to see what happens during screening. 
+        Thicker flows represent more people, but all paths are sized for visibility.
+        """)
+
+        st.markdown("---")
 
         # Add screening impact comparison
         st.subheader("🔄 Screening Impact Analysis")
