@@ -25,12 +25,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # App config
-st.set_page_config(page_title="Cancer Screening Outcomes", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Cancer Screening Outcomes Visualizer", page_icon="📊", layout="wide")
 
 st.markdown("<h1 class='main-header'>Cancer Screening Outcomes Visualizer</h1>", unsafe_allow_html=True)
 st.markdown("Enter your details to see a personalized Sankey diagram of screening test outcomes for 100 or 1000 people like you. Data as of July 2025. For education only—consult a doctor.")
 
-# Data structures (unchanged)
+# Data structures
 CANCER_INCIDENCE = {
     "lung": {"male": {40: 10, 50: 30, 60: 95, 70: 195, 80: 235}, "female": {40: 15, 50: 38, 60: 80, 70: 145, 80: 175}},
     "breast": {"male": {40: 1, 50: 2, 60: 3, 70: 4, 80: 5}, "female": {40: 48, 50: 130, 60: 200, 70: 250, 80: 275}},
@@ -158,7 +158,7 @@ DOWNSTREAM_RISKS = {
     "Skin Exam": {"false_positive_rate": 11.0, "biopsy_rate_fp": 0.2, "comp_rate_biopsy": 0.005, "psychological_impact": "Low", "radiation_exposure": "None"}
 }
 
-# Functions (unchanged)
+# Functions
 def interpolate_incidence(age, sex, cancer_type):
     if cancer_type not in CANCER_INCIDENCE:
         return 0
@@ -275,19 +275,45 @@ def calculate_per_cancer_prevalence(age, sex, risk_multipliers=None):
         results.append({"Cancer Type": cancer_type.replace("_", " ").title(), "Personalized Risk (%)": prevalence * 100})
     return pd.DataFrame(results)
 
-def combine_tests(tests, mode):
-    sens_combined = 0 if mode == "Parallel" else 1
-    spec_combined = 1 if mode == "Parallel" else 0
-    for test in tests:
-        sens_test = np.mean([TEST_PERFORMANCE[test].get(ct, {"sensitivity": 0})["sensitivity"] for ct in CANCER_INCIDENCE.keys()])
-        spec_test = np.mean([TEST_PERFORMANCE[test].get(ct, {"specificity": 1})["specificity"] for ct in CANCER_INCIDENCE.keys()])
-        if mode == "Parallel":
-            sens_combined = 1 - (1 - sens_combined) * (1 - sens_test)
-            spec_combined *= spec_test
-        else:
-            sens_combined *= sens_test
-            spec_combined = 1 - (1 - spec_combined) * (1 - spec_test)
-    return sens_combined, spec_combined
+def combine_tests(tests, mode, age, sex, risk_multipliers):
+    cancer_outcomes = {}
+    for cancer_type in CANCER_INCIDENCE.keys():
+        if (cancer_type in ["prostate", "testicular"] and sex == "female") or (cancer_type in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male"):
+            continue
+        sens_combined = 0 if mode == "Parallel" else 1
+        spec_combined = 1 if mode == "Parallel" else 0
+        for test in tests:
+            if cancer_type in TEST_PERFORMANCE.get(test, {}):
+                sens = TEST_PERFORMANCE[test][cancer_type]["sensitivity"]
+                spec = TEST_PERFORMANCE[test][cancer_type]["specificity"]
+                if mode == "Parallel":
+                    sens_combined = 1 - (1 - sens_combined) * (1 - sens)
+                    spec_combined *= spec
+                else:
+                    sens_combined *= sens
+                    spec_combined = 1 - (1 - spec_combined) * (1 - spec)
+        prevalence = (interpolate_incidence(age, sex, cancer_type) / 100000) * 10
+        if risk_multipliers and cancer_type in risk_multipliers:
+            prevalence *= risk_multipliers[cancer_type]
+        cancer_outcomes[cancer_type] = {"sensitivity": sens_combined, "specificity": spec_combined, "prevalence": prevalence}
+
+    # Aggregate outcomes
+    overall_sens = np.mean([co["sensitivity"] for co in cancer_outcomes.values()])
+    overall_spec = np.mean([co["specificity"] for co in cancer_outcomes.values()])
+    return overall_sens, overall_spec, cancer_outcomes
+
+def calculate_y_positions(values, total_height=0.9, min_spacing=0.05):
+    """Calculate y-positions for Sankey nodes to avoid overlap, proportional to values."""
+    total_value = sum(values)
+    if total_value == 0:
+        return [0.5] * len(values)
+    normalized = [v / total_value for v in values]
+    y_positions = []
+    current_y = 0.05
+    for norm in normalized:
+        y_positions.append(current_y + norm * total_height / 2)
+        current_y += norm * total_height + min_spacing
+    return y_positions
 
 # Sidebar inputs
 with st.sidebar:
@@ -312,33 +338,22 @@ risk_multipliers = {ct: get_risk_multiplier(ct, smoking_status, pack_years, fami
 
 overall_prevalence = calculate_overall_prevalence(age, sex, risk_multipliers)
 
-# Dynamic y-position calculation function
-def calculate_y_positions(values, total_height=0.9, min_spacing=0.05):
-    """Calculate y-positions for Sankey nodes to avoid overlap, proportional to values."""
-    total_value = sum(values)
-    if total_value == 0:
-        return [0.5] * len(values)  # Fallback for zero values
-    normalized = [v / total_value for v in values]
-    y_positions = []
-    current_y = 0.05  # Start near top
-    for norm in normalized:
-        y_positions.append(current_y + norm * total_height / 2)
-        current_y += norm * total_height + min_spacing
-    return y_positions
-
 if tests:
     if len(tests) > 1:
         mode = st.sidebar.selectbox("Combination Mode", ["Parallel (Any positive)", "Sequential (All positive)"])
-        sens, spec = combine_tests(tests, mode)
+        sens, spec, cancer_outcomes = combine_tests(tests, mode, age, sex, risk_multipliers)
         fp_rate = np.mean([DOWNSTREAM_RISKS[t]["false_positive_rate"] for t in tests]) / 100
-        biopsy_rate = np.mean([DOWNSTREAM_RISKS[t]["biopsy_rate_fp"] for t in tests])
+        biopsy_rates = [DOWNSTREAM_RISKS[t]["biopsy_rate_fp"] for t in tests]
+        base_biopsy_rate = np.mean(biopsy_rates)
+        # Adjust biopsy rate based on combined specificity
+        adjusted_biopsy_rate = max(0.1, min(0.9, base_biopsy_rate * (1 - spec)))
         comp_rate = np.mean([DOWNSTREAM_RISKS[t]["comp_rate_biopsy"] for t in tests])
     else:
         test = tests[0]
         sens = np.mean([TEST_PERFORMANCE[test].get(ct, {"sensitivity": 0})["sensitivity"] for ct in cancer_types])
         spec = np.mean([TEST_PERFORMANCE[test].get(ct, {"specificity": 1})["specificity"] for ct in cancer_types])
         fp_rate = DOWNSTREAM_RISKS[test]["false_positive_rate"] / 100
-        biopsy_rate = DOWNSTREAM_RISKS[test]["biopsy_rate_fp"]
+        adjusted_biopsy_rate = DOWNSTREAM_RISKS[test]["biopsy_rate_fp"]
         comp_rate = DOWNSTREAM_RISKS[test]["comp_rate_biopsy"]
 
     # Outcomes scaled to population
@@ -353,7 +368,7 @@ if tests:
     positive = tp + fp
     negative = fn + tn
 
-    biopsy = positive * biopsy_rate
+    biopsy = positive * adjusted_biopsy_rate
     no_biopsy = positive - biopsy
     complication = biopsy * comp_rate
     no_complication = biopsy - complication
@@ -371,7 +386,7 @@ if tests:
     stage3_values = [cancer_treated, benign, complication]
     stage3_y = calculate_y_positions(stage3_values)
 
-    # Sankey Diagram with dynamic y-positions
+    # Sankey Diagram with dynamic y-positions and improved colors
     fig = go.Figure(data=[go.Sankey(
         orientation='h',
         node=dict(
@@ -387,9 +402,9 @@ if tests:
                 f"Complication from Biopsy ({complication:.1f})"
             ],
             color=[
-                "#AED6F1", "#F39C12", "#BDC3C7",
-                "#8E44AD", "#95A5A6", "#2ECC71", "#3498DB",
-                "#1ABC9C", "#E67E22", "#E74C3C"
+                "#1b9e77", "#d95f02", "#7570b3",
+                "#e6ab02", "#66a61e", "#e7298a", "#a6761d",
+                "#666666", "#1b9e77", "#d95f02"
             ],
             x=[0, 0.2, 0.2, 0.4, 0.4, 0.6, 0.6, 0.8, 0.8, 0.8],
             y=[
@@ -400,32 +415,14 @@ if tests:
             ],
         ),
         link=dict(
-            source=[
-                0, 0,
-                1, 1,
-                2, 2,
-                3, 3, 3,
-                4
-            ],
-            target=[
-                1, 2,
-                3, 4,
-                5, 6,
-                7, 8, 9,
-                8
-            ],
-            value=[
-                positive, negative,
-                biopsy, no_biopsy,
-                reassured, further_monitor,
-                cancer_treated, benign, complication,
-                no_biopsy
-            ],
+            source=[0, 0, 1, 1, 2, 2, 3, 3, 3, 4],
+            target=[1, 2, 3, 4, 5, 6, 7, 8, 9, 8],
+            value=[positive, negative, biopsy, no_biopsy, reassured, further_monitor, cancer_treated, benign, complication, no_biopsy],
             color='rgba(189, 195, 199, 0.5)',
             hovercolor='blue',
             label=[f"{v:.1f}" for v in [positive, negative, biopsy, no_biopsy, reassured, further_monitor, cancer_treated, benign, complication, no_biopsy]]
         ),
-        textfont=dict(size=14, color="black")
+        textfont=dict(size=16, color="black")
     )])
 
     fig.update_layout(
@@ -436,16 +433,17 @@ if tests:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # Metrics
-    st.markdown("<div class='metric-box'>", unsafe_allow_html=True)
-    st.write(f"Overall Risk: {overall_prevalence*100:.2f}%")
-    st.write(f"Positive Results: {positive:.1f}")
-    st.write(f"Negative Results: {negative:.1f}")
-    st.write(f"Biopsies: {biopsy:.1f}")
-    st.write(f"Complications: {complication:.1f}")
-    st.write(f"Cancer Found & Treated: {cancer_treated:.1f}")
-    st.write(f"Benign Results (False Alarm): {benign:.1f}")
-    st.markdown("</div>", unsafe_allow_html=True)
+    # Metrics in collapsible section
+    with st.expander("View Metrics"):
+        st.markdown("<div class='metric-box'>", unsafe_allow_html=True)
+        st.write(f"Overall Risk: {overall_prevalence*100:.2f}%")
+        st.write(f"Positive Results: {positive:.1f}")
+        st.write(f"Negative Results: {negative:.1f}")
+        st.write(f"Biopsies: {biopsy:.1f}")
+        st.write(f"Complications: {complication:.1f}")
+        st.write(f"Cancer Found & Treated: {cancer_treated:.1f}")
+        st.write(f"Benign Results (False Alarm): {benign:.1f}")
+        st.markdown("</div>", unsafe_allow_html=True)
 else:
     # No tests selected - Baseline risk Sankey
     has_cancer = overall_prevalence * population
@@ -465,9 +463,7 @@ else:
                 f"{population} People",
                 f"Has Cancer (Undetected) ({has_cancer:.1f})", f"No Cancer ({no_cancer:.1f})"
             ],
-            color=[
-                "#AED6F1", "#E74C3C", "#2ECC71"
-            ],
+            color=["#1b9e77", "#d95f02", "#7570b3"],
             x=[0, 0.4, 0.4],
             y=[0.5, baseline_y[0], baseline_y[1]],
         ),
@@ -479,7 +475,7 @@ else:
             hovercolor='blue',
             label=[f"{has_cancer:.1f}", f"{no_cancer:.1f}"]
         ),
-        textfont=dict(size=14, color="black")
+        textfont=dict(size=16, color="black")
     )])
 
     fig.update_layout(
@@ -491,11 +487,12 @@ else:
     st.plotly_chart(fig, use_container_width=True)
 
     # Metrics for baseline
-    st.markdown("<div class='metric-box'>", unsafe_allow_html=True)
-    st.write(f"Overall Risk: {overall_prevalence*100:.2f}%")
-    st.write(f"Has Cancer (Undetected): {has_cancer:.1f}")
-    st.write(f"No Cancer: {no_cancer:.1f}")
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.expander("View Metrics"):
+        st.markdown("<div class='metric-box'>", unsafe_allow_html=True)
+        st.write(f"Overall Risk: {overall_prevalence*100:.2f}%")
+        st.write(f"Has Cancer (Undetected): {has_cancer:.1f}")
+        st.write(f"No Cancer: {no_cancer:.1f}")
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # Per-cancer stats
 st.header("Personalized Risk per Cancer Type (10-Year Risk)")
