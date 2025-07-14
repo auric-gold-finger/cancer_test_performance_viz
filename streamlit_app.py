@@ -9,25 +9,27 @@ st.markdown("""
 <style>
     .stApp {
         background-color: #ffffff;
-        font-family: 'Arial', sans-serif;
+        font-family: 'Inter', 'Segoe UI', sans-serif;
     }
     .main-header {
-        color: #2c3e50;
+        color: #1f2937;
         text-align: center;
+        font-weight: 600;
     }
     .metric-box {
-        background-color: #f8f9fa;
-        border-radius: 8px;
-        padding: 10px;
-        margin: 10px 0;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        background-color: #f9fafb;
+        border-radius: 6px;
+        padding: 12px;
+        margin: 8px 0;
+        border: 1px solid #e5e7eb;
     }
     .warning-box {
-        background-color: #fff3cd;
-        border: 1px solid #ffeaa7;
-        border-radius: 8px;
-        padding: 15px;
-        margin: 10px 0;
+        background-color: #fefce8;
+        border: 1px solid #eab308;
+        border-radius: 6px;
+        padding: 16px;
+        margin: 12px 0;
+        color: #92400e;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -38,11 +40,11 @@ st.set_page_config(page_title="Cancer Screening Outcomes Visualizer", page_icon=
 st.markdown("<h1 class='main-header'>Cancer Screening Outcomes Visualizer</h1>", unsafe_allow_html=True)
 st.markdown("""
 <div class='warning-box'>
-⚠️ <strong>Medical Disclaimer:</strong> This tool is for educational purposes only. The risk calculations are simplified models and should not replace professional medical advice. Always consult with a healthcare provider for medical decisions.
+<strong>Medical Disclaimer:</strong> This tool is for educational purposes only. Risk calculations are simplified models and should not replace professional medical advice. Always consult with a healthcare provider for medical decisions.
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown("Enter your details to see a personalized Sankey diagram of screening test outcomes for 100 or 1000 people like you. Data as of July 2025.")
+st.markdown("Enter your details to see personalized screening test outcomes analysis. Data as of July 2025.")
 
 # Data structures
 CANCER_INCIDENCE = {
@@ -496,10 +498,10 @@ def create_sankey_diagram(population, overall_prevalence, sens, spec, adjusted_b
                 f"Complication ({complication:.1f})"     # 9
             ],
             color=[
-                "#2E86AB",  # Blue
-                "#E74C3C", "#27AE60",  # Red/Green
-                "#F39C12", "#3498DB", "#9B59B6", "#E67E22",  # Various
-                "#1ABC9C", "#F1C40F", "#E74C3C"  # Teal/Yellow/Red
+                "#475569",  # Slate
+                "#dc2626", "#059669",  # Red/Green
+                "#ea580c", "#0284c7", "#7c3aed", "#d97706",  # Various
+                "#0d9488", "#ca8a04", "#dc2626"  # Teal/Yellow/Red
             ],
             x=[0.12, 0.31, 0.39, 0.61, 0.69, 0.61, 0.69, 0.88, 0.88, 0.88],
             y=[0.5, 0.3, 0.7, 0.2, 0.4, 0.8, 0.9, 0.25, 0.55, 0.4],
@@ -510,11 +512,11 @@ def create_sankey_diagram(population, overall_prevalence, sens, spec, adjusted_b
             value=[positive, negative, biopsy, no_biopsy, reassured, further_monitor, 
                    cancer_treated, benign, complication, no_biopsy],
             color=[
-                'rgba(231, 76, 60, 0.4)', 'rgba(39, 174, 96, 0.4)', 
-                'rgba(243, 156, 18, 0.4)', 'rgba(52, 152, 219, 0.4)',
-                'rgba(155, 89, 182, 0.4)', 'rgba(230, 126, 34, 0.4)',
-                'rgba(26, 188, 156, 0.4)', 'rgba(241, 196, 15, 0.4)',
-                'rgba(231, 76, 60, 0.4)', 'rgba(241, 196, 15, 0.4)'
+                'rgba(220, 38, 38, 0.3)', 'rgba(5, 150, 105, 0.3)', 
+                'rgba(234, 88, 12, 0.3)', 'rgba(2, 132, 199, 0.3)',
+                'rgba(124, 58, 237, 0.3)', 'rgba(217, 119, 6, 0.3)',
+                'rgba(13, 148, 136, 0.3)', 'rgba(202, 138, 4, 0.3)',
+                'rgba(220, 38, 38, 0.3)', 'rgba(202, 138, 4, 0.3)'
             ],
             hovertemplate='<b>%{source.label}</b> → <b>%{target.label}</b><br>' +
                          'Count: %{value:.1f} people<br><extra></extra>'
@@ -668,17 +670,17 @@ if not errors:  # Only proceed if no validation errors
     with col3:
         if overall_prevalence < 0.05:
             risk_level = "Low"
-            risk_color = "🟢"
+            risk_color = "#22c55e"
         elif overall_prevalence < 0.15:
             risk_level = "Moderate" 
-            risk_color = "🟡"
+            risk_color = "#f59e0b"
         else:
             risk_level = "High"
-            risk_color = "🔴"
+            risk_color = "#ef4444"
         
         st.metric(
             label="Risk Level",
-            value=f"{risk_color} {risk_level}",
+            value=f"{risk_level}",
             help="Relative risk category"
         )
     
@@ -689,7 +691,7 @@ if not errors:  # Only proceed if no validation errors
         
         for cancer, risk in top_risks:
             if risk > 0.001:  # Only show risks > 0.1%
-                st.write(f"• **{cancer.replace('_', ' ').title()}**: {risk*100:.1f}% (10-year risk)")
+                st.write(f"• {cancer.replace('_', ' ').title()}: {risk*100:.1f}% (10-year risk)")
     
     # Screening test analysis
     if tests:
@@ -762,9 +764,9 @@ if not errors:  # Only proceed if no validation errors
 
             # Add interpretation guide
             st.markdown("""
-            **💡 How to read this diagram:** 
+            **How to read this diagram:** 
             Follow the flow from left to right to see what happens during screening. 
-            Thicker flows represent more people, but all paths are sized for visibility.
+            Flow thickness represents the number of people following each path.
             """)
         else:
             st.warning("⚠️ Selected test(s) cannot detect any cancers relevant to your demographic profile.")
@@ -793,13 +795,13 @@ if not errors:  # Only proceed if no validation errors
         your_complication_chance = complication / population if population > 0 else 0
         
         # Screening impact comparison
-        st.subheader("🔄 Your Personal Screening Impact")
-        st.markdown("**How does screening change YOUR outcomes?**")
+        st.subheader("Your Personal Screening Impact")
+        st.markdown("**How does screening change your outcomes?**")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("**📊 Your Probability Changes**")
+            st.markdown("**Your Probability Changes**")
             
             # Create individual probability comparison chart
             scenarios = ['Cancer Risk', 'Cancer Detected', 'False Positive', 'Biopsy Needed', 'Complication']
@@ -818,7 +820,7 @@ if not errors:  # Only proceed if no validation errors
                 name='Without Screening',
                 x=scenarios,
                 y=no_screening,
-                marker_color='#E74C3C',
+                marker_color='#6b7280',
                 text=[f'{y:.1f}%' if y > 0.1 else f'{y:.2f}%' for y in no_screening],
                 textposition='auto',
                 hovertemplate='Without Screening<br>%{y:.2f}%<extra></extra>'
@@ -828,7 +830,7 @@ if not errors:  # Only proceed if no validation errors
                 name='With Screening',
                 x=scenarios,
                 y=with_screening,
-                marker_color='#27AE60',
+                marker_color='#059669',
                 text=[f'{y:.1f}%' if y > 0.1 else f'{y:.2f}%' for y in with_screening],
                 textposition='auto',
                 hovertemplate='With Screening<br>%{y:.2f}%<extra></extra>'
