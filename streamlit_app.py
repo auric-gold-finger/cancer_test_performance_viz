@@ -19,36 +19,36 @@ st.markdown("""
 <style>
     /* Main app background */
     .stApp {
-        background-color: #ffffff;
-        color: #1f2937;
+        background-color: #ffffff !important;
+        color: #1f2937 !important;
     }
-    
+
     /* Main content area */
     .main .block-container {
-        background-color: #ffffff;
-        color: #1f2937;
+        background-color: #ffffff !important;
+        color: #1f2937 !important;
     }
-    
+
     /* Custom styling */
     .main-header {
-        color: #1f2937;
+        color: #1f2937 !important;
         text-align: center;
         font-weight: 600;
     }
     .metric-box {
-        background-color: #f9fafb;
+        background-color: #f9fafb !important;
         border-radius: 6px;
         padding: 12px;
         margin: 8px 0;
         border: 1px solid #e5e7eb;
     }
     .warning-box {
-        background-color: #fefce8;
+        background-color: #fefce8 !important;
         border: 1px solid #eab308;
         border-radius: 6px;
         padding: 16px;
         margin: 12px 0;
-        color: #92400e;
+        color: #92400e !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -608,7 +608,7 @@ with st.sidebar:
                     if 20 <= age_val <= 100:
                         ages_list.append(age_val)
             family_ages[fh] = ages_list if ages_list else [60]
-        except:
+        except (ValueError, IndexError, TypeError, AttributeError):
             family_ages[fh] = [60]  # Default fallback
     
     # Genetic testing
