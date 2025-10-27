@@ -1,0 +1,206 @@
+# Cancer Risk Factor Configuration
+# =================================
+# This file contains all risk multiplier data for cancer risk calculations.
+# Medical data should be updated by domain experts based on current literature.
+#
+# Data Sources:
+# - Smoking risks: Surgeon General Report 2014, various meta-analyses
+# - Family history: NCCN Guidelines, various family history studies
+# - Genetic mutations: Kuchenbaecker et al. JAMA 2017 (BRCA), Win et al. JAMA Oncol 2017 (Lynch)
+# - Personal history: SEER Cancer Statistics Review
+#
+# Last updated: 2024-12-15
+# Version: 1.0.0
+
+# =================================
+# SMOKING RISK MULTIPLIERS
+# =================================
+smoking_risk:
+  current_smoker:
+    # Lung cancer - pack-year dependent
+    lung:
+      - pack_years: [0, 20]
+        multiplier: 10.0
+      - pack_years: [20, 40]
+        multiplier: 15.0
+      - pack_years: [40, 999]
+        multiplier: 20.0
+
+    # Other smoking-related cancers
+    bladder:
+      multiplier: 2.0
+    kidney:
+      multiplier: 2.0
+    pancreatic:
+      multiplier: 2.0
+    cervical:
+      multiplier: 2.0
+    esophageal:
+      multiplier: 2.0
+    gastric:
+      multiplier: 2.0
+    head_neck:
+      multiplier: 2.0
+    colorectal:
+      multiplier: 1.6
+    liver:
+      multiplier: 1.6
+
+  former_smoker:
+    # Lung cancer - pack-year dependent (reduced from current)
+    lung:
+      - pack_years: [0, 20]
+        multiplier: 5.0
+      - pack_years: [20, 40]
+        multiplier: 8.0
+      - pack_years: [40, 999]
+        multiplier: 12.0
+
+    # Other smoking-related cancers (reduced from current)
+    bladder:
+      multiplier: 1.5
+    kidney:
+      multiplier: 1.5
+    pancreatic:
+      multiplier: 1.5
+    cervical:
+      multiplier: 1.5
+    esophageal:
+      multiplier: 1.5
+    gastric:
+      multiplier: 1.5
+    head_neck:
+      multiplier: 1.5
+    colorectal:
+      multiplier: 1.3
+    liver:
+      multiplier: 1.3
+
+  never_smoked:
+    # No multipliers for never smokers (default 1.0)
+
+# =================================
+# FAMILY HISTORY RISK MULTIPLIERS
+# =================================
+family_history_risk:
+  # Cancers with well-established family history data
+
+  colorectal:
+    base_multiplier_early: 2.5  # First-degree relative diagnosed < 60 years
+    base_multiplier_late: 1.8   # First-degree relative diagnosed >= 60 years
+    age_threshold: 60
+    multiple_relatives_bonus: 0.2  # Additional factor per extra relative (max 2)
+    max_multiple_factor: 1.4       # Cap on multiple relatives bonus
+
+  breast:
+    base_multiplier_early: 2.2  # First-degree relative diagnosed < 50 years
+    base_multiplier_late: 1.8   # First-degree relative diagnosed >= 50 years
+    age_threshold: 50
+    multiple_relatives_bonus: 0.2
+    max_multiple_factor: 1.4
+
+  prostate:
+    base_multiplier: 2.0
+    multiple_relatives_bonus: 0.2
+    max_multiple_factor: 1.4
+
+  ovarian:
+    base_multiplier: 2.5
+    multiple_relatives_bonus: 0.2
+    max_multiple_factor: 1.4
+
+  lung:
+    base_multiplier: 1.5
+    multiple_relatives_bonus: 0.2
+    max_multiple_factor: 1.4
+
+  pancreatic:
+    base_multiplier: 1.5
+    multiple_relatives_bonus: 0.2
+    max_multiple_factor: 1.4
+
+  # Default for cancers not listed above
+  default:
+    base_multiplier: 1.3
+    multiple_relatives_bonus: 0.2
+    max_multiple_factor: 1.4
+
+# =================================
+# GENETIC MUTATION RISK MULTIPLIERS
+# =================================
+genetic_mutations:
+  BRCA1:
+    breast: 8.0      # ~70% lifetime risk
+    ovarian: 6.0     # ~40% lifetime risk
+
+  BRCA2:
+    breast: 5.0      # ~60% lifetime risk
+    ovarian: 3.0     # ~20% lifetime risk
+    prostate: 3.0    # Increased prostate cancer risk
+
+  "Lynch syndrome":
+    colorectal: 6.0  # ~70% lifetime risk
+    ovarian: 3.0     # ~10% lifetime risk
+    endometrial: 5.0 # ~60% lifetime risk
+
+  "TP53 (Li-Fraumeni)":
+    # Li-Fraumeni syndrome affects multiple cancer types
+    breast: 4.0
+    lung: 4.0
+    colorectal: 4.0
+    liver: 4.0
+    brain: 4.0
+    sarcoma: 4.0
+
+# =================================
+# PERSONAL CANCER HISTORY
+# =================================
+personal_history:
+  multiplier: 2.0  # 2x risk for developing another cancer after first diagnosis
+
+# =================================
+# FAMILY HISTORY CANCER TYPE MAPPING
+# =================================
+# Maps user-friendly family history names to cancer type keys
+cancer_family_mapping:
+  "Breast cancer": breast
+  "Colorectal cancer": colorectal
+  "Prostate cancer": prostate
+  "Ovarian cancer": ovarian
+  "Lung cancer": lung
+  "Pancreatic cancer": pancreatic
+
+# =================================
+# RISK CLASSIFICATION THRESHOLDS
+# =================================
+risk_thresholds:
+  low: 0.05       # < 5% = low risk
+  moderate: 0.15  # 5-15% = moderate risk
+  high: 0.15      # >= 15% = high risk
+
+# =================================
+# SAFETY LIMITS
+# =================================
+# These caps ensure clinical reasonableness and prevent numerical overflow
+safety_limits:
+  max_individual_cancer_risk: 0.60  # Cap individual cancer type at 60%
+  max_overall_cancer_risk: 0.85     # Cap overall cancer risk at 85%
+  max_risk_multiplier: 25.0         # Cap combined risk multipliers at 25x
+
+# =================================
+# DISPLAY THRESHOLDS
+# =================================
+display_thresholds:
+  minimum_risk_to_show: 0.001  # 0.1% - don't display risks below this threshold
+  high_risk_recommendation: 0.10    # >= 10% - strongly recommend screening
+  moderate_risk_recommendation: 0.05 # >= 5% - recommend screening
+  low_risk_recommendation: 0.02      # >= 2% - consider screening
+
+# =================================
+# RISK LEVEL COLORS
+# =================================
+# Colors for risk level visualization (hex codes)
+risk_colors:
+  low: "#22c55e"      # Green
+  moderate: "#f59e0b" # Amber
+  high: "#ef4444"     # Red

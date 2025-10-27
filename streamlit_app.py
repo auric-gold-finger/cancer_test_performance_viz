@@ -3,8 +3,16 @@ import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
 import math
+from config import get_risk_config
 
+# Load risk configuration
+risk_config = get_risk_config()
 
+# Load configuration values for use throughout the app
+SAFETY_LIMITS = risk_config.get_safety_limits()
+RISK_THRESHOLDS = risk_config.get_risk_thresholds()
+DISPLAY_THRESHOLDS = risk_config.get_display_thresholds()
+RISK_COLORS = risk_config.get_risk_colors()
 
 # App config
 st.set_page_config(
@@ -215,114 +223,70 @@ def interpolate_incidence(age, sex, cancer_type):
 
 def get_risk_multiplier_fixed(cancer_type, smoking_status, pack_years, family_history, family_ages, genetic_mutations, personal_history):
     """
-    Calculate risk multiplier using logarithmic combination to prevent extreme values
+    Calculate risk multiplier using logarithmic combination to prevent extreme values.
+
+    All medical risk data is loaded from config/risk_factors.yaml for easy maintenance.
+    Risk factors are combined on log scale to prevent extreme multiplication overflow.
+
+    Args:
+        cancer_type: Cancer type key (e.g., 'lung', 'breast')
+        smoking_status: One of 'Never smoked', 'Former smoker', 'Current smoker'
+        pack_years: Pack-years of smoking (packs per day × years)
+        family_history: List of family cancer history strings
+        family_ages: Dict mapping cancer types to lists of diagnosis ages
+        genetic_mutations: List of known genetic mutations
+        personal_history: Boolean indicating prior cancer diagnosis
+
+    Returns:
+        Risk multiplier (1.0 = average risk, >1.0 = increased risk)
     """
     risk_factors = []  # Log-scale risk factors to be summed
-    
-    # Smoking risk factors (log scale)
-    if smoking_status == "Current smoker":
-        if cancer_type == "lung":
-            if pack_years < 20:
-                risk_factors.append(math.log(10))  # 10x
-            elif pack_years < 40:
-                risk_factors.append(math.log(15))  # 15x
-            else:
-                risk_factors.append(math.log(20))  # 20x
-        elif cancer_type in ["bladder", "kidney", "pancreatic", "cervical", "esophageal", "gastric", "head_neck"]:
-            risk_factors.append(math.log(2.0))  # 2x
-        elif cancer_type in ["colorectal", "liver"]:
-            risk_factors.append(math.log(1.6))  # 1.6x
-    
-    elif smoking_status == "Former smoker":
-        if cancer_type == "lung":
-            if pack_years < 20:
-                risk_factors.append(math.log(5))   # 5x
-            elif pack_years < 40:
-                risk_factors.append(math.log(8))   # 8x
-            else:
-                risk_factors.append(math.log(12))  # 12x
-        elif cancer_type in ["bladder", "kidney", "pancreatic", "cervical", "esophageal", "gastric", "head_neck"]:
-            risk_factors.append(math.log(1.5))  # 1.5x
-        elif cancer_type in ["colorectal", "liver"]:
-            risk_factors.append(math.log(1.3))  # 1.3x
-    
-    # Family history with diminishing returns
-    cancer_family_map = {
-        "breast": "Breast cancer",
-        "colorectal": "Colorectal cancer", 
-        "prostate": "Prostate cancer",
-        "ovarian": "Ovarian cancer",
-        "lung": "Lung cancer",
-        "pancreatic": "Pancreatic cancer"
-    }
-    
-    family_cancer = cancer_family_map.get(cancer_type)
+
+    # Smoking risk factors (loaded from config)
+    smoking_mult = risk_config.get_smoking_risk(smoking_status, cancer_type, pack_years)
+    if smoking_mult > 1.0:
+        risk_factors.append(math.log(smoking_mult))
+
+    # Family history with diminishing returns (loaded from config)
+    cancer_family_map = risk_config.get_cancer_family_mapping()
+
+    # Reverse map: cancer_type -> family history display name
+    reverse_map = {v: k for k, v in cancer_family_map.items()}
+    family_cancer = reverse_map.get(cancer_type)
+
     if family_cancer and family_cancer in family_history:
         family_ages_list = family_ages.get(family_cancer, [60])
         if family_ages_list:  # Check if list is not empty
             min_age = min(family_ages_list)
             family_count = len(family_ages_list)
-            
-            # Base family history multiplier
-            if cancer_type == "colorectal":
-                base_multiplier = 2.5 if min_age < 60 else 1.8
-            elif cancer_type == "breast":
-                base_multiplier = 2.2 if min_age < 50 else 1.8
-            elif cancer_type == "prostate":
-                base_multiplier = 2.0
-            elif cancer_type == "ovarian":
-                base_multiplier = 2.5
-            elif cancer_type in ["lung", "pancreatic"]:
-                base_multiplier = 1.5
-            else:
-                base_multiplier = 1.3
-            
-            # Diminishing returns for multiple relatives
-            family_factor = 1.0 + 0.2 * min(family_count - 1, 2)  # Max 1.4x for multiple relatives
-            
-            total_family_multiplier = base_multiplier * family_factor
-            risk_factors.append(math.log(total_family_multiplier))
-    
-    # Genetic mutations
-    if "BRCA1" in genetic_mutations:
-        if cancer_type == "breast":
-            risk_factors.append(math.log(8))   # 8x
-        elif cancer_type == "ovarian":
-            risk_factors.append(math.log(6))   # 6x
-    
-    if "BRCA2" in genetic_mutations:
-        if cancer_type == "breast":
-            risk_factors.append(math.log(5))   # 5x
-        elif cancer_type == "ovarian":
-            risk_factors.append(math.log(3))   # 3x
-        elif cancer_type == "prostate":
-            risk_factors.append(math.log(3))   # 3x
-    
-    if "Lynch syndrome" in genetic_mutations:
-        if cancer_type == "colorectal":
-            risk_factors.append(math.log(6))   # 6x
-        elif cancer_type == "ovarian":
-            risk_factors.append(math.log(3))   # 3x
-        elif cancer_type == "endometrial":
-            risk_factors.append(math.log(5))   # 5x
-    
-    if "TP53 (Li-Fraumeni)" in genetic_mutations:
-        if cancer_type in ["breast", "lung", "colorectal", "liver", "brain", "sarcoma"]:
-            risk_factors.append(math.log(4))   # 4x
-    
-    # Personal history
+
+            # Get family history multiplier from config
+            family_mult = risk_config.get_family_history_risk(cancer_type, min_age, family_count)
+            risk_factors.append(math.log(family_mult))
+
+    # Genetic mutations (loaded from config)
+    for mutation in genetic_mutations:
+        genetic_mult = risk_config.get_genetic_mutation_risk(mutation, cancer_type)
+        if genetic_mult > 1.0:
+            risk_factors.append(math.log(genetic_mult))
+
+    # Personal history (loaded from config)
     if personal_history:
-        risk_factors.append(math.log(2.0))  # 2x
-    
+        personal_mult = risk_config.get_personal_history_risk()
+        risk_factors.append(math.log(personal_mult))
+
     # Combine on log scale and convert back
     if not risk_factors:
         return 1.0
-    
+
     total_log_risk = sum(risk_factors)
     final_multiplier = math.exp(total_log_risk)
-    
-    # Cap at 25x maximum
-    return min(final_multiplier, 25.0)
+
+    # Get maximum cap from config
+    safety_limits = risk_config.get_safety_limits()
+    max_multiplier = safety_limits.get('max_risk_multiplier', 25.0)
+
+    return min(final_multiplier, max_multiplier)
 
 def calculate_overall_prevalence_fixed(age, sex, risk_multipliers=None):
     """
@@ -342,9 +306,9 @@ def calculate_overall_prevalence_fixed(age, sex, risk_multipliers=None):
         
         if risk_multipliers and cancer_type in risk_multipliers:
             prevalence *= risk_multipliers[cancer_type]
-        
-        # Cap individual cancer risk at 60%
-        prevalence = min(prevalence, 0.60)
+
+        # Cap individual cancer risk
+        prevalence = min(prevalence, SAFETY_LIMITS['max_individual_cancer_risk'])
         cancer_probabilities.append(prevalence)
         individual_risks[cancer_type] = prevalence
     
@@ -354,9 +318,9 @@ def calculate_overall_prevalence_fixed(age, sex, risk_multipliers=None):
         prob_no_cancer *= (1 - prob)
     
     overall_prevalence = 1 - prob_no_cancer
-    
-    # Additional safety cap at 85%
-    return min(overall_prevalence, 0.85), individual_risks
+
+    # Additional safety cap
+    return min(overall_prevalence, SAFETY_LIMITS['max_overall_cancer_risk']), individual_risks
 
 def calculate_per_cancer_prevalence_fixed(age, sex, risk_multipliers=None):
     """Calculate personalized risk for each cancer type"""
@@ -371,9 +335,9 @@ def calculate_per_cancer_prevalence_fixed(age, sex, risk_multipliers=None):
         
         multiplier = risk_multipliers.get(cancer_type, 1.0) if risk_multipliers else 1.0
         prevalence = base_prevalence * multiplier
-        
+
         # Cap individual risk
-        prevalence = min(prevalence, 0.60)
+        prevalence = min(prevalence, SAFETY_LIMITS['max_individual_cancer_risk'])
         
         results.append({
             "Cancer Type": cancer_type.replace("_", " ").title(), 
@@ -426,8 +390,9 @@ def combine_tests(tests, mode, age, sex, risk_multipliers):
         
         if risk_multipliers and cancer_type in risk_multipliers:
             prevalence *= risk_multipliers[cancer_type]
-        
-        prevalence = min(prevalence, 0.60)  # Cap individual cancer risk
+
+        # Cap individual cancer risk
+        prevalence = min(prevalence, SAFETY_LIMITS['max_individual_cancer_risk'])
         cancer_outcomes[cancer_type] = {
             "sensitivity": sens_combined, 
             "specificity": spec_combined, 
@@ -684,15 +649,15 @@ if not errors:  # Only proceed if no validation errors
         )
     
     with col3:
-        if overall_prevalence < 0.05:
+        if overall_prevalence < RISK_THRESHOLDS['low']:
             risk_level = "Low"
-            risk_color = "#22c55e"
-        elif overall_prevalence < 0.15:
-            risk_level = "Moderate" 
-            risk_color = "#f59e0b"
+            risk_color = RISK_COLORS['low']
+        elif overall_prevalence < RISK_THRESHOLDS['moderate']:
+            risk_level = "Moderate"
+            risk_color = RISK_COLORS['moderate']
         else:
             risk_level = "High"
-            risk_color = "#ef4444"
+            risk_color = RISK_COLORS['high']
         
         st.metric(
             label="Risk Level",
@@ -706,7 +671,8 @@ if not errors:  # Only proceed if no validation errors
         st.subheader("Your Highest Risk Cancers")
         
         for cancer, risk in top_risks:
-            if risk > 0.001:  # Only show risks > 0.1%
+            # Only show risks above minimum threshold
+            if risk > DISPLAY_THRESHOLDS['minimum_risk_to_show']:
                 st.write(f"• {cancer.replace('_', ' ').title()}: {risk*100:.1f}% (10-year risk)")
     
     # Screening test analysis
@@ -872,9 +838,9 @@ if not errors:  # Only proceed if no validation errors
             
             # Individual benefits
             st.markdown("**Benefits from Screening:**")
-            if your_cancer_detection_chance > 0.001:
+            if your_cancer_detection_chance > DISPLAY_THRESHOLDS['minimum_risk_to_show']:
                 st.write(f"• {your_cancer_detection_chance*100:.2f}% chance of early cancer detection")
-                
+
                 # Estimated mortality benefit
                 mortality_reduction = your_cancer_detection_chance * 0.3  # 30% mortality reduction
                 st.write(f"• {mortality_reduction*100:.2f}% reduction in cancer death risk")
@@ -888,7 +854,7 @@ if not errors:  # Only proceed if no validation errors
             st.markdown("**Risks from Screening:**")
             st.write(f"• {your_false_positive_chance*100:.1f}% chance of false positive")
             st.write(f"• {your_biopsy_chance*100:.1f}% chance of needing biopsy")
-            if your_complication_chance > 0.001:
+            if your_complication_chance > DISPLAY_THRESHOLDS['minimum_risk_to_show']:
                 st.write(f"• {your_complication_chance*100:.2f}% chance of biopsy complication")
             else:
                 st.write(f"• <0.01% chance of biopsy complication")
@@ -908,18 +874,18 @@ if not errors:  # Only proceed if no validation errors
             
             # Personalized recommendation
             st.markdown("**For Your Risk Profile:**")
-            if your_cancer_risk > 0.1:  # High risk (>10%)
+            if your_cancer_risk > DISPLAY_THRESHOLDS['high_risk_recommendation']:  # High risk
                 if net_benefit_individual > 0.1:
                     st.success("Screening strongly recommended - High risk with clear benefit")
                 else:
                     st.info("Discuss with doctor - High risk but consider test limitations")
-            elif your_cancer_risk > 0.05:  # Moderate risk (5-10%)
+            elif your_cancer_risk > DISPLAY_THRESHOLDS['moderate_risk_recommendation']:  # Moderate risk
                 if net_benefit_individual > 0.05:
                     st.success("Screening recommended - Moderate risk with good benefit")
                 else:
                     st.info("Consider screening - Weigh personal preferences")
-            else:  # Low risk (<5%)
-                if net_benefit_individual > 0.02:
+            else:  # Low risk
+                if net_benefit_individual > DISPLAY_THRESHOLDS['low_risk_recommendation']:
                     st.info("Screening may be worthwhile - Low risk but some benefit")
                 else:
                     st.warning("Limited benefit - Consider if convenience/cost worth it")
