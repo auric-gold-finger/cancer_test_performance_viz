@@ -1,0 +1,43 @@
+# Streamlit Configuration File
+# ============================
+# This file configures the appearance and behavior of the Streamlit app.
+# See: https://docs.streamlit.io/library/advanced-features/configuration
+
+[theme]
+# Light theme optimized for medical data visualization
+# Note: Users can override this with their browser's dark mode preference
+# by using the theme toggle in the Streamlit menu (≡ → Settings → Theme)
+
+# Primary color - used for interactive elements
+primaryColor = "#1f2937"  # Slate gray
+
+# Background color - main app background
+backgroundColor = "#ffffff"  # White
+
+# Secondary background color - used for sidebar and containers
+secondaryBackgroundColor = "#f9fafb"  # Light gray
+
+# Text color - main text throughout the app
+textColor = "#1f2937"  # Dark gray for readability
+
+# Font - sans serif for clean, professional appearance
+font = "sans serif"
+
+[server]
+# Server configuration
+# headless = true  # Uncomment for production deployment
+# port = 8501      # Default Streamlit port
+
+[browser]
+# Browser configuration
+gatherUsageStats = false  # Disable usage statistics collection
+
+[client]
+# Client configuration
+showErrorDetails = true   # Show detailed errors during development
+# showErrorDetails = false # Uncomment for production
+
+[runner]
+# Runner configuration
+# magicEnabled = true      # Enable Streamlit magic commands
+# fastReruns = true        # Enable fast reruns for better performance

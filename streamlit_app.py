@@ -22,51 +22,16 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Minimal light theme enforcement
-st.markdown("""
-<style>
-    /* Main app background */
-    .stApp {
-        background-color: #ffffff !important;
-        color: #1f2937 !important;
-    }
+# Main header using native Streamlit
+st.title("Cancer Screening Outcomes Visualizer")
 
-    /* Main content area */
-    .main .block-container {
-        background-color: #ffffff !important;
-        color: #1f2937 !important;
-    }
-
-    /* Custom styling */
-    .main-header {
-        color: #1f2937 !important;
-        text-align: center;
-        font-weight: 600;
-    }
-    .metric-box {
-        background-color: #f9fafb !important;
-        border-radius: 6px;
-        padding: 12px;
-        margin: 8px 0;
-        border: 1px solid #e5e7eb;
-    }
-    .warning-box {
-        background-color: #fefce8 !important;
-        border: 1px solid #eab308;
-        border-radius: 6px;
-        padding: 16px;
-        margin: 12px 0;
-        color: #92400e !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown("<h1 class='main-header'>Cancer Screening Outcomes Visualizer</h1>", unsafe_allow_html=True)
-st.markdown("""
-<div class='warning-box'>
-<strong>Medical Disclaimer:</strong> This tool is for educational purposes only. Risk calculations are simplified models and should not replace professional medical advice. Always consult with a healthcare provider for medical decisions.
-</div>
-""", unsafe_allow_html=True)
+# Medical disclaimer using native Streamlit warning component
+st.warning(
+    "**Medical Disclaimer:** This tool is for educational purposes only. "
+    "Risk calculations are simplified models and should not replace professional medical advice. "
+    "Always consult with a healthcare provider for medical decisions.",
+    icon="⚕️"
+)
 
 st.markdown("Enter your details to see personalized screening test outcomes analysis. Data as of July 2025.")
 
@@ -162,26 +127,75 @@ TEST_PERFORMANCE = {
         "kidney": {"sensitivity": 0.85, "specificity": 0.89}
     },
     "Colonoscopy": {
-        "colorectal": {"sensitivity": 0.95, "specificity": 0.90}
+        "colorectal": {"sensitivity": 0.95, "specificity": 0.90},
+        "_metadata": {
+            "description": "Visual examination of the colon and rectum",
+            "scope": "Colorectal cancer only",
+            "data_source": "USPSTF 2021, Gastroenterology meta-analyses",
+            "last_updated": "2024-12",
+            "note": "Gold standard for colorectal cancer screening"
+        }
     },
     "Upper Endoscopy": {
         "esophageal": {"sensitivity": 0.85, "specificity": 0.90},
-        "gastric": {"sensitivity": 0.80, "specificity": 0.85}
+        "gastric": {"sensitivity": 0.80, "specificity": 0.85},
+        "_metadata": {
+            "description": "Visual examination of upper digestive tract",
+            "scope": "Esophageal and gastric cancers only",
+            "data_source": "Gastroenterology guidelines 2024",
+            "last_updated": "2024-12",
+            "note": "Screens for upper GI tract cancers"
+        }
     },
     "Dermoscopy": {
-        "melanoma": {"sensitivity": 0.94, "specificity": 0.85}
+        "melanoma": {"sensitivity": 0.94, "specificity": 0.85},
+        "_metadata": {
+            "description": "Magnified examination of skin lesions",
+            "scope": "Melanoma (skin cancer) only",
+            "data_source": "Dermatology meta-analyses 2024",
+            "last_updated": "2024-12",
+            "note": "More accurate than visual skin exam alone"
+        }
     },
     "Mammography": {
-        "breast": {"sensitivity": 0.85, "specificity": 0.90}
+        "breast": {"sensitivity": 0.85, "specificity": 0.90},
+        "_metadata": {
+            "description": "X-ray imaging of breast tissue",
+            "scope": "Breast cancer only",
+            "data_source": "USPSTF 2024, ACS guidelines",
+            "last_updated": "2024-12",
+            "note": "Standard breast cancer screening for women 40+"
+        }
     },
     "HPV Test": {
-        "cervical": {"sensitivity": 0.95, "specificity": 0.94}
+        "cervical": {"sensitivity": 0.95, "specificity": 0.94},
+        "_metadata": {
+            "description": "Test for human papillomavirus",
+            "scope": "Cervical cancer only",
+            "data_source": "USPSTF 2024, WHO guidelines",
+            "last_updated": "2024-12",
+            "note": "Primary cervical cancer screening test"
+        }
     },
     "PSA Test": {
-        "prostate": {"sensitivity": 0.90, "specificity": 0.30}
+        "prostate": {"sensitivity": 0.90, "specificity": 0.30},
+        "_metadata": {
+            "description": "Prostate-specific antigen blood test",
+            "scope": "Prostate cancer only",
+            "data_source": "USPSTF 2024",
+            "last_updated": "2024-12",
+            "note": "Low specificity leads to high false positive rate"
+        }
     },
     "Skin Exam": {
-        "melanoma": {"sensitivity": 0.77, "specificity": 0.89}
+        "melanoma": {"sensitivity": 0.77, "specificity": 0.89},
+        "_metadata": {
+            "description": "Visual skin examination by clinician",
+            "scope": "Melanoma (skin cancer) only",
+            "data_source": "AAD guidelines 2024",
+            "last_updated": "2024-12",
+            "note": "Clinical examination without dermoscopy"
+        }
     }
 }
 
@@ -589,10 +603,34 @@ with st.sidebar:
     # Screening tests
     st.subheader("Screening Tests to Evaluate")
     tests = st.multiselect(
-        "Select Tests", 
+        "Select Tests",
         list(TEST_PERFORMANCE.keys()),
         help="Choose which screening tests to include in the analysis"
     )
+
+    # Show test coverage warnings
+    if tests:
+        for test in tests:
+            # Count how many cancer types this test can detect (exclude _metadata)
+            test_data = TEST_PERFORMANCE.get(test, {})
+            test_coverage = len([k for k in test_data.keys() if k != '_metadata'])
+
+            total_applicable_cancers = len([ct for ct in CANCER_INCIDENCE.keys()
+                                          if not ((ct in ["prostate", "testicular"] and sex == "female") or
+                                                (ct in ["ovarian", "cervical", "endometrial", "uterine"] and sex == "male"))])
+
+            coverage_pct = (test_coverage / total_applicable_cancers * 100) if total_applicable_cancers > 0 else 0
+
+            # Warn for highly specific tests with low coverage
+            if coverage_pct < 20:
+                # Get test metadata if available
+                metadata = test_data.get('_metadata', {})
+                scope_info = metadata.get('scope', f"{test_coverage} cancer type(s)")
+
+                st.info(
+                    f"ℹ️ **{test}** is highly specific - {scope_info} ({coverage_pct:.0f}% coverage)",
+                    icon="ℹ️"
+                )
     
     # Display options
     st.subheader("Display Options")
