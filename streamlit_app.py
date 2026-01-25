@@ -23,17 +23,50 @@ st.set_page_config(
 )
 
 # Main header using native Streamlit
-st.title("Cancer Screening Outcomes Visualizer")
+st.title("🔬 Cancer Screening Outcomes Visualizer")
 
 # Medical disclaimer using native Streamlit warning component
 st.warning(
-    "**Medical Disclaimer:** This tool is for educational purposes only. "
+    "**⚕️ Medical Disclaimer:** This tool is for educational purposes only. "
     "Risk calculations are simplified models and should not replace professional medical advice. "
     "Always consult with a healthcare provider for medical decisions.",
     icon="⚕️"
 )
 
-st.markdown("Enter your details to see personalized screening test outcomes analysis. Data as of July 2025.")
+# Introduction and instructions
+st.markdown("""
+### How to Use This Tool
+
+1. **Enter your personal information** in the sidebar (left)
+2. **Select screening tests** you want to evaluate
+3. **Review your personalized risk** assessment and screening outcomes
+4. **Understand the benefits and risks** of each test for your specific profile
+
+*Data sources: SEER 2024, USPSTF 2024, medical literature meta-analyses | Last updated: December 2024*
+""")
+
+# Getting started guide
+with st.expander("📖 Getting Started Guide", expanded=False):
+    st.markdown("""
+    **This tool helps you understand:**
+    - Your personalized cancer risk based on age, sex, and risk factors
+    - How screening tests perform for someone with your risk profile
+    - The potential benefits and harms of different screening approaches
+
+    **Step-by-step:**
+    1. Use the sidebar to enter your demographic information (age, sex)
+    2. Add any risk factors you have (smoking, family history, genetic mutations)
+    3. Select which screening tests you want to compare
+    4. Review the visualizations showing outcomes for 100-1000 people like you
+
+    **Understanding the results:**
+    - **Risk Level**: Your 10-year probability of developing any cancer
+    - **Test Coverage**: Which cancers each test can detect
+    - **Sankey Diagram**: Visual flow showing what happens during screening
+    - **Personal Impact**: Your specific probabilities for each outcome
+    """)
+
+st.markdown("---")
 
 # Data structures
 CANCER_INCIDENCE = {
@@ -551,32 +584,57 @@ def create_sankey_diagram(population, overall_prevalence, sens, spec, adjusted_b
 
 # Sidebar inputs
 with st.sidebar:
-    st.header("Your Details")
-    
+    st.header("👤 Your Information")
+    st.markdown("*Complete the sections below to get your personalized risk assessment*")
+    st.markdown("---")
+
     # Basic demographics
-    age = st.slider("Age", 30, 90, 55)
-    sex = st.selectbox("Sex", ["male", "female"])
-    
+    st.subheader("📋 Demographics")
+    age = st.slider(
+        "Age (years)",
+        30, 90, 55,
+        help="Your current age. Risk increases with age for most cancers."
+    )
+    sex = st.selectbox(
+        "Biological Sex",
+        ["male", "female"],
+        help="Used to calculate sex-specific cancer risks (e.g., prostate, breast, ovarian)"
+    )
+
     # Smoking history
-    smoking_status = st.selectbox("Smoking Status", ["Never smoked", "Former smoker", "Current smoker"])
+    st.subheader("🚬 Smoking History")
+    smoking_status = st.selectbox(
+        "Smoking Status",
+        ["Never smoked", "Former smoker", "Current smoker"],
+        help="Smoking is a major risk factor for many cancers, especially lung cancer"
+    )
     pack_years = 0
     if smoking_status != "Never smoked":
-        pack_years = st.slider("Pack-years (packs per day × years smoked)", 0, 80, 20)
-        st.caption("Example: 1 pack/day for 20 years = 20 pack-years")
-    
+        pack_years = st.slider(
+            "Pack-years",
+            0, 80, 20,
+            help="Pack-years = packs per day × years smoked. Example: 1 pack/day for 20 years = 20 pack-years"
+        )
+        st.caption("💡 *Higher pack-years = higher risk, especially for lung cancer*")
+
     # Family history
+    st.subheader("👨‍👩‍👧‍👦 Family History")
     family_history = st.multiselect(
-        "Family Cancer History (1st/2nd degree relatives)", 
-        ["Breast cancer", "Colorectal cancer", "Prostate cancer", "Ovarian cancer", "Lung cancer", "Pancreatic cancer"]
+        "Family Cancer History",
+        ["Breast cancer", "Colorectal cancer", "Prostate cancer", "Ovarian cancer", "Lung cancer", "Pancreatic cancer"],
+        help="Select any cancers that occurred in your first or second-degree relatives (parents, siblings, children, grandparents, aunts, uncles)"
     )
     
     family_ages = {}
+    if family_history:
+        st.caption("📝 *Enter the age(s) at diagnosis for each cancer type:*")
+
     for fh in family_history:
         ages_input = st.text_input(
-            f"Ages of Diagnosis for {fh} (comma-separated)", 
-            value="60", 
+            f"{fh} - Age(s) at Diagnosis",
+            value="60",
             key=fh,
-            help="Enter ages when family members were diagnosed, separated by commas"
+            help="Enter ages when family members were diagnosed (comma-separated for multiple relatives). Younger age at diagnosis increases your risk."
         )
         try:
             ages_list = []
@@ -589,19 +647,32 @@ with st.sidebar:
             family_ages[fh] = ages_list if ages_list else [60]
         except (ValueError, IndexError, TypeError, AttributeError):
             family_ages[fh] = [60]  # Default fallback
-    
+
+    st.markdown("---")
+
     # Genetic testing
+    st.subheader("🧬 Genetic Testing")
     genetic_mutations = st.multiselect(
-        "Known Genetic Mutations", 
+        "Confirmed Genetic Mutations",
         ["BRCA1", "BRCA2", "Lynch syndrome", "TP53 (Li-Fraumeni)"],
-        help="Only include mutations confirmed by genetic testing"
+        help="Only select mutations that have been confirmed by genetic testing. These significantly increase risk for specific cancers."
     )
-    
+    if genetic_mutations:
+        st.caption("⚠️ *Genetic mutations can substantially increase cancer risk*")
+
+    st.markdown("---")
+
     # Personal history
-    personal_history = st.checkbox("Personal Cancer History", help="Have you been diagnosed with cancer before?")
-    
+    st.subheader("📋 Personal History")
+    personal_history = st.checkbox(
+        "Previous Cancer Diagnosis",
+        help="Check this if you have been diagnosed with cancer before. Prior cancer diagnosis increases risk of developing another cancer."
+    )
+
+    st.markdown("---")
+
     # Screening tests
-    st.subheader("Screening Tests to Evaluate")
+    st.subheader("🔬 Screening Tests to Evaluate")
     tests = st.multiselect(
         "Select Tests",
         list(TEST_PERFORMANCE.keys()),
@@ -632,21 +703,31 @@ with st.sidebar:
                     icon="ℹ️"
                 )
     
+    st.markdown("---")
+
     # Display options
-    st.subheader("Display Options")
-    per_thousand = st.checkbox("Show per 1000 people", value=False)
+    st.subheader("⚙️ Display Options")
+    per_thousand = st.checkbox(
+        "Show per 1,000 people (instead of 100)",
+        value=False,
+        help="Use larger population for more precise visualizations. Recommended for low-risk profiles."
+    )
     population = 1000 if per_thousand else 100
-    
+
     # Input validation
     errors, warnings = validate_inputs(age, smoking_status, pack_years, family_ages)
-    
+
     if errors:
+        st.markdown("---")
+        st.error("⚠️ **Please Fix These Errors:**")
         for error in errors:
-            st.error(f"Error: {error}")
-    
+            st.error(f"• {error}")
+
     if warnings:
+        st.markdown("---")
+        st.warning("💡 **Suggestions:**")
         for warning in warnings:
-            st.warning(f"Warning: {warning}")
+            st.warning(f"• {warning}")
 
 # Main calculations
 if not errors:  # Only proceed if no validation errors
@@ -972,8 +1053,13 @@ if not errors:  # Only proceed if no validation errors
 
     else:
         # No tests selected - show baseline risk
-        st.header("Baseline Risk (No Screening)")
-        
+        st.header("📊 Baseline Risk (No Screening)")
+
+        st.info(
+            "💡 **Tip:** Select one or more screening tests in the sidebar to see how they would perform for your risk profile!",
+            icon="💡"
+        )
+
         has_cancer = overall_prevalence * population
         no_cancer = population - has_cancer
 
